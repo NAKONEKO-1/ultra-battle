@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>初代怪兽对战 · v1.0</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="head">
+    <div class="logo">
+      <span class="dot"></span>
+      <h1>初代怪兽对战</h1>
+      <span class="ver">v1.0</span>
+    </div>
+    <p class="tagline">19 只 · 五种类型 · 领域 · 羁绊 · 对波</p>
+  </header>
+
+  <!-- 模式选择 -->
+  <section id="modeSelect" class="mode-select">
+    <button class="mode-btn" data-mode="versus" type="button">
+      <span class="mode-title">怪兽对战</span>
+      <span class="mode-sub">3v3 · 对 AI</span>
+    </button>
+    <button class="mode-btn" data-mode="invade" type="button">
+      <span class="mode-title">侵略地球</span>
+      <span class="mode-sub">三轮 · 打威托，再打奥特曼</span>
+    </button>
+    <button class="mode-btn" data-mode="dex" type="button">
+      <span class="mode-title">图鉴</span>
+      <span class="mode-sub">查看所有角色与技能</span>
+    </button>
+    <button class="mode-btn" data-mode="tutorial" type="button">
+      <span class="mode-title">教程</span>
+      <span class="mode-sub">一场战斗学会全部机制</span>
+    </button>
+  </section>
+
+  <!-- 图鉴 -->
+  <section id="dex" class="dex" hidden>
+    <div class="dex-head">
+      <button id="dexBack" class="back-btn" type="button">← 返回</button>
+      <span class="dex-title">图鉴</span>
+    </div>
+    <div class="pick-grid" id="dexGrid"></div>
+  </section>
+
+  <!-- 选人 -->
+  <section id="pick" class="pick" hidden>
+    <div class="pick-head">
+      <div class="pick-lead">
+        <h2 class="pick-title" id="pickTitle">怪兽对战</h2>
+        <p class="pick-hint" id="pickHint">选 3 只，编成点数上限 20。每只带 4 个技能，可以自己配。</p>
+      </div>
+      <div class="cost-box" id="costBox">
+        <span class="cost-label">编成点数</span>
+        <div class="cost-track"><i id="costBar"></i></div>
+        <span class="cost-num"><b id="costNum">0</b>/20</span>
+      </div>
+    </div>
+
+    <div class="unlock-note" id="unlockNote" hidden></div>
+
+    <div class="pick-grid" id="pickGrid"></div>
+
+    <button class="start-btn" id="startBtn" type="button" disabled>还要选 3 只</button>
+  </section>
+
+  <!-- 战斗 -->
+  <section id="battle" class="battle" hidden>
+
+    <div class="timer-box" id="timerBox">
+      <div class="timer-left">
+        <span class="timer-label">彩色计时器</span>
+        <span class="timer-num"><b id="timerNum">24</b><em>回合</em></span>
+      </div>
+      <div class="timer-track"><i id="timerFill"></i></div>
+    </div>
+
+    <div class="topbar">
+      <span>第 <b id="turnNum">1</b> 回合</span>
+      <span class="field-box" id="fieldBox" hidden></span>
+    </div>
+
+    <div class="field">
+
+      <div class="mon-card" id="enemyCard">
+        <div class="mon-head">
+          <span class="mon-name" id="enemyName">—</span>
+          <span class="mon-sub" id="enemySub"></span>
+          <span class="mon-type" id="enemyType"></span>
+        </div>
+        <div class="sprite" id="enemySprite"></div>
+        <div class="dodge" id="enemyDodge" hidden></div>
+        <div class="bars">
+          <div class="row">
+            <span class="lab">HP</span>
+            <div class="bar hp"><i id="enemyHpBar"></i></div>
+            <span class="num" id="enemyHpTxt"></span>
+          </div>
+          <div class="row">
+            <span class="lab">EP</span>
+            <div class="bar ep"><i id="enemyEpBar"></i></div>
+            <span class="num" id="enemyEpTxt"></span>
+          </div>
+        </div>
+        <div class="bench">
+          <div class="bench-dots" id="enemyBench"></div>
+          <span class="switch-txt" id="enemySwitchTxt"></span>
+        </div>
+      </div>
+
+      <div class="mid"><div class="vs">VS</div></div>
+
+      <div class="mon-card" id="playerCard">
+        <div class="mon-head">
+          <span class="mon-name" id="playerName">—</span>
+          <span class="mon-sub" id="playerSub"></span>
+          <span class="mon-type" id="playerType"></span>
+        </div>
+        <div class="sprite" id="playerSprite"></div>
+        <div class="dodge" id="playerDodge" hidden></div>
+        <div class="bars">
+          <div class="row">
+            <span class="lab">HP</span>
+            <div class="bar hp"><i id="playerHpBar"></i></div>
+            <span class="num" id="playerHpTxt"></span>
+          </div>
+          <div class="row">
+            <span class="lab">EP</span>
+            <div class="bar ep"><i id="playerEpBar"></i></div>
+            <span class="num" id="playerEpTxt"></span>
+          </div>
+        </div>
+        <div class="bench">
+          <div class="bench-dots" id="playerBench"></div>
+          <span class="switch-txt" id="playerSwitchTxt"></span>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="banner" class="banner" hidden></div>
+
+  <div id="tutOverlay" class="tut-overlay" hidden>
+    <div class="tut-card">
+      <div class="tut-step" id="tutStep">1 / 6</div>
+      <h3 class="tut-title" id="tutTitle"></h3>
+      <p class="tut-text" id="tutText"></p>
+      <button class="tut-next" id="tutNext" type="button">下一步</button>
+    </div>
+  </div>
+
+    <div id="clashBox" class="clash-box" hidden></div>
+
+    <div class="hint">
+      <span class="h-stance">反制A</span> 挡 <span class="h-beam">光线</span>
+      <span class="sep">｜</span>
+      <span class="h-stance">反制B</span> 挡 <span class="h-melee">格斗</span>
+      <span class="sep">｜</span>
+      猜错类型 → <b>破姿态 ×1.6</b>
+      <span class="sep">｜</span>
+      双方都出攻击时，快的先手并吃破姿态优势
+      <span class="sep">｜</span>
+      大招只吃基础减伤
+    </div>
+
+    <div class="hint hint-sub">
+      双方同时出光线 → <b>对波</b>，比伤害差值，可追 EP 反击
+      <span class="sep">｜</span>
+      换人：队伍总速度快的一方换完还能出招，慢的只能防御
+    </div>
+
+    <div class="hint hint-sub">
+      类型：<b>宇宙人</b>克全体怪兽，怪兽三环 <b>宇宙怪兽 → 超能力怪兽 → 地球怪兽 → 宇宙怪兽</b>
+      <span class="sep">｜</span>
+      <b>豪强</b>对原本克制目标额外 +0.2
+    </div>
+
+    <div class="actions" id="actions"></div>
+
+    <div class="log" id="log"></div>
+
+  </section>
+
+  <footer class="foot">
+    <span>本鱼做的原型 · 非商业同人练习</span>
+  </footer>
+
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

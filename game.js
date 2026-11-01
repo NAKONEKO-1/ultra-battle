@@ -1,0 +1,2273 @@
+'use strict';
+
+/* ============================================================
+   初代怪兽对战 · 原型 v1.1
+
+   这一版：
+   - 八种状态：迟缓 / 眩晕 / 击退 / 浮空 / 混乱 / 倒地 / 神经中毒 / 钳制
+   - 技能带效果字段（fx）
+   - 被动重写
+   - 领域 + 羁绊：见 POLISH 段（下一步接入）
+   ============================================================ */
+
+const MAX_TIMER = 24;
+const TEAM_COST = 20;
+const EP_MAX = 100;
+const EP_START = 60;
+const EP_REGEN = 8;
+const MAX_SWITCH = 3;
+const BREAK = 1.6;
+const COUNTER_A_GUARD = 0.15;
+
+/* 宇宙人克全体怪兽；怪兽三环：宇宙怪兽 > 超能力怪兽 > 地球怪兽 > 宇宙怪兽 */
+const TYPE_CHART = {
+  cosmosMan:    { cosmosBeast: 1.1, esper: 1.1, earthMonster: 1.1 },
+  cosmosBeast:  { esper: 1.1 },
+  esper:        { earthMonster: 1.1 },
+  earthMonster: { cosmosBeast: 1.1 },
+};
+const OVERLORD_BONUS = 0.2;
+
+function typeMult(att, def) {
+  const chart = TYPE_CHART[att.type];
+  let m = (chart && chart[def.type]) || 1;
+  if (att.overlord && m > 1) m += OVERLORD_BONUS;
+  return m;
+}
+
+const TYPE_NAME = {
+  melee: '格斗', beam: '光线', stance: '姿态', ult: '必杀',
+  field: '领域', util: '功能', passive: '被动',
+};
+
+/* ---------------- 通用技能 ---------------- */
+const COMMON = {
+  swift:   { id: 'swift',   name: '连击', type: 'melee', power: 50, ep: 6,  desc: '通用格斗' },
+  iron:    { id: 'iron',    name: '拳击', type: 'melee', power: 65, ep: 10, desc: '通用格斗，重' },
+  beam:    { id: 'beam',    name: '光束', type: 'beam',  power: 55, ep: 10, desc: '通用光线' },
+  scatter: { id: 'scatter', name: '散射', type: 'beam',  power: 40, ep: 7, drain: 5, desc: '通用光线，削 EP' },
+};
+
+/* ---------------- 十六只怪 ---------------- */
+const MONSTERS = {
+  bemular: {
+    id: 'bemular', name: '百慕拉', sub: '宇宙怪兽', type: 'cosmosBeast', typeName: '宇宙怪兽',
+    hp: 110, atk: 75, def: 60, spd: 70, cost: 5,
+    melee: { name: '俯身冲刺', power: 65, ep: 8, desc: '无明显效果' },
+    beamM: { name: '苍蓝热射线', power: 70, ep: 12, desc: '无明显效果' },
+    counterA: { name: '光球化', dodge: 62, ep: 5, vs: 'beam', orbSet: true, desc: '使用后，光球化冲撞必定先手' },
+    counterB: { name: '水中适应能力', dodge: 38, guard: 0.25, ep: 5, vs: 'melee', lakeChance: 75, desc: '无明显效果' },
+    ult: { name: '光球化冲撞', power: 260, ep: 28, acc: 75, orbFirst: true, ultType: 'melee', desc: '上回合光球化则先制' },
+    field: { name: '宇宙逃犯', ep: 5, kind: 'cosmosBoost', value: 5, turns: 2, desc: '所有宇宙角色伤害 +5%，2 回合' },
+    passive: { name: '潜航', kind: 'dodgeBoost', value: 25, desc: '闪避成功后，下一次攻击伤害 +25%' },
+  },
+
+  baltan: {
+    id: 'baltan', name: '巴尔坦星人', sub: '宇宙人', type: 'cosmosMan', typeName: '宇宙人',
+    hp: 95, atk: 70, def: 55, spd: 85, cost: 8,
+    melee: { name: '巨钳攻击', power: 55, ep: 6, desc: '无明显效果' },
+    beamM: { name: '赤色冷冻光束', power: 72, ep: 12, fx: 'slow', desc: '造成迟缓：敌方接下来两次行动必定慢于我方' },
+    counterA: { name: '分身术', dodge: 72, ep: 5, vs: 'beam', givesDouble: true, desc: '无明显效果' },
+    counterB: { name: '瞬间移动能力', dodge: 50, guard: 0.2, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '白色破坏光线', power: 230, ep: 26, acc: 82, doubleBonus: true, ultType: 'beam', desc: '无明显效果' },
+    field: { name: '高科技族群', ep: 7, kind: 'beamBoost', value: 10, turns: 2, desc: '场上光线技能伤害 +10%，2 回合' },
+    passive: { name: '精神感应', kind: 'stackAtk', value: 2, max: 10, desc: '进场后每次命中永久 +2 攻 +2 血（上限 +10）' },
+  },
+
+  baltan2: {
+    id: 'baltan2', name: '巴尔坦星人二世', sub: '宇宙人', type: 'cosmosMan', typeName: '宇宙人',
+    hp: 105, atk: 82, def: 65, spd: 76, cost: 6,
+    melee: { name: '冲刺钳击', power: 60, ep: 7, desc: '无明显效果' },
+    beamM: { name: '重力风暴', power: 75, ep: 11, drain: 6, fx: 'noMelee2', desc: '造成击退：敌方无法使用格斗技能两回合' },
+    counterA: { name: '光波屏障', dodge: 70, ep: 5, vs: 'beam', shieldLight: 45, desc: '无明显效果' },
+    counterB: { name: '瞬间移动能力', dodge: 50, guard: 0.2, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '蓝色破坏闪光', power: 255, ep: 32, acc: 78, ultType: 'beam', desc: '无明显效果' },
+    field: { name: '复仇的巴尔坦', ep: 6, kind: 'dodgeBoost', value: 10, turns: 3, desc: '我方全体闪避 +10%，3 回合' },
+    passive: { name: '斯派修姆反射板', kind: 'dodgeNullify', desc: '闪避成功后，免疫下一次光线攻击' },
+  },
+
+  neronga: {
+    id: 'neronga', name: '内隆嘎', sub: '地底怪兽', type: 'earthMonster', typeName: '地球怪兽',
+    hp: 122, atk: 84, def: 70, spd: 55, cost: 6,
+    melee: { name: '舍身冲撞', power: 58, ep: 6, desc: '无明显效果' },
+    beamM: { name: '高压电击', power: 62, ep: 12, drain: 6, desc: '无明显效果' },
+    counterA: { name: '透明化', dodge: 85, ep: 5, vs: 'beam', chargeDodge: 15, desc: '无明显效果' },
+    counterB: { name: '坚硬皮肤', dodge: 40, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '全身放电', power: 250, ep: 28, acc: 78, ultType: 'beam', desc: '无明显效果' },
+    field: { name: '吸电力场', ep: 20, kind: 'chargeField', value: 3, turns: 99, desc: '我方命中可为内隆嘎蓄力，满三层自动放全身放电' },
+    passive: { name: '吸电', kind: 'epAbsorb', value: 6, boost: 20, desc: '被光线命中 EP +6，下次高压电击/全身放电 +20%' },
+  },
+
+  ragon: {
+    id: 'ragon', name: '拉贡', sub: '海底原人', type: 'earthMonster', typeName: '地球怪兽',
+    hp: 110, atk: 88, def: 72, spd: 45, cost: 6,
+    melee: { name: '怪力', power: 68, ep: 8, desc: '无明显效果' },
+    beamM: { name: '放射性射线', power: 66, ep: 14, desc: '无明显效果' },
+    counterA: { name: '侧身', dodge: 55, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '粘液护体', dodge: 35, guard: 0.22, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '原子爆炸', power: 350, ep: 60, acc: 100, selfDestruct: true, twoPhase: true, oncePerBattle: true, desc: 'EP≥60：350 伤害，保留 1 HP，无视闪避，减伤 10%；EP<60：消耗全部 EP，威力降为 175，可闪避，减伤 20%，不保留 HP' },
+    field: { name: '原始恐怖', ep: 10, kind: 'typeBoost', types: ['earthMonster'], value: 10, turns: 2, desc: '全体地球怪兽伤害 +10%，2 回合' },
+    passive: { name: '自毁', kind: 'bombDiscount', value: 3, desc: 'HP ≤ 30% 时，原子爆炸 EP 5 → 2' },
+  },
+
+  greenmons: {
+    id: 'greenmons', name: '绿蒙斯', sub: '植物怪兽', type: 'earthMonster', typeName: '地球怪兽',
+    hp: 105, atk: 72, def: 58, spd: 65, cost: 5,
+    melee: { name: '巨叶重击', power: 52, ep: 6, desc: '无明显效果' },
+    beamM: { name: '雾状麻醉液', power: 58, ep: 12, drain: 8, fx: 'stun', desc: '造成眩晕：接下来一回合无法行动' },
+    counterA: { name: '粘液', dodge: 60, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '厚叶', dodge: 38, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '巨大化', power: 0, ep: 28, acc: 100, selfBuff: true, desc: '对自己使用：全属性 +25%，受光线伤害 +15%，2 回合' },
+    field: { name: '毒雾领域', ep: 7, kind: 'poisonField', value: 2, heal: 5, turns: 3, desc: '敌方中毒（每回合 -2 HP），我方恩泽（每回合 +5 HP），3 回合' },
+    passive: { name: '再生', kind: 'regenFlat', value: 5, desc: '每次受伤回复 5 HP' },
+  },
+
+  antlar: {
+    id: 'antlar', name: '安东拉', sub: '磁力怪兽', type: 'earthMonster', typeName: '地球怪兽',
+    hp: 130, atk: 90, def: 80, spd: 40, cost: 7,
+    melee: { name: '巨颚', power: 72, ep: 8, fx: 'clamp', desc: '造成钳制两回合' },
+    beamM: { name: '磁力光线', power: 60, ep: 14, pull: 2, desc: '无明显效果' },
+    counterA: { name: '钻沙', dodge: 55, ep: 5, vs: 'beam', accUpMelee: 75, desc: '使用后，巨颚命中率提高 75%' },
+    counterB: { name: '硬化', dodge: 30, guard: 0.3, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '砂尘暴', power: 230, ep: 30, acc: 74, autoField: '沙漠化', ultType: 'beam', desc: '无明显效果' },
+    field: { name: '沙漠化', ep: 8, kind: 'dodgeBoost', value: 15, turns: 3, desc: '展开沙漠地形，自身闪避 +15%，3 回合' },
+    passive: { name: '砂岚', kind: 'fieldDodge', value: 8, desc: '场上存在领域时，我方全队闪避 +8' },
+  },
+
+  redking: {
+    id: 'redking', name: '雷德王', sub: '怪兽', type: 'earthMonster', typeName: '地球怪兽',
+    hp: 140, atk: 105, def: 75, spd: 40, cost: 8,
+    melee: { name: '铁拳', power: 70, ep: 8, desc: '无明显效果' },
+    beamM: { name: '投石', power: 55, ep: 14, combo: 75, desc: '无明显效果' },
+    counterA: { name: '咆哮', dodge: 40, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '铁壁', dodge: 30, guard: 0.35, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '岩石崩落', power: 280, ep: 30, acc: 72, ultType: 'melee', desc: '无明显效果' },
+    field: { name: '怪兽之王', ep: 10, kind: 'typeBoost', types: ['earthMonster', 'cosmosBeast', 'esper'], value: 10, turns: 3, desc: '攻击地球怪兽/宇宙怪兽/超能力怪兽伤害 +10%' },
+    passive: { name: '蛮力', kind: 'rage', value: 15, hurt: 10, desc: '伤害 +15%，受伤 +10%' },
+  },
+
+  zarab: {
+    id: 'zarab', name: '扎拉布星人', sub: '宇宙人', type: 'cosmosMan', typeName: '宇宙人',
+    hp: 100, atk: 78, def: 60, spd: 75, cost: 7,
+    melee: { name: '肘击', power: 56, ep: 6, desc: '无明显效果' },
+    beamM: { name: '高频波', power: 64, ep: 12, drain: 6, desc: '无明显效果' },
+    counterA: { name: '隐身', dodge: 45, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '飞行', dodge: 68, guard: 0.2, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '催眠光线', power: 175, ep: 26, acc: 80, fx: 'confuse', chance: 65, ultType: 'beam', desc: '65% 使敌人混乱：下一次攻击目标为自身' },
+    field: { name: '行星来的兄弟', ep: 13, kind: 'drainStats', value: 5, turns: 5, desc: '吸取两方宇宙角色 5% 攻防' },
+    passive: { name: '外形拟态', kind: 'openClone', value: 50, desc: '开场化身假奥特曼（50% HP），致命伤时变回本体，溢出伤害打本体' },
+  },
+
+  jamila: {
+    id: 'jamila', name: '贾米拉', sub: '宇宙怪兽', type: 'cosmosBeast', typeName: '宇宙怪兽',
+    hp: 115, atk: 85, def: 65, spd: 60, cost: 6,
+    melee: { name: '重击', power: 62, ep: 7, desc: '无明显效果' },
+    beamM: { name: '火焰喷射', power: 68, ep: 12, flameChance: 65, desc: '无明显效果' },
+    counterA: { name: '躲避', dodge: 58, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '硬抗', dodge: 35, guard: 0.36, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '死前嚎叫', power: 245, ep: 28, acc: 76, passive: true, onDeath: 245, desc: '被动：倒下时对场上敌人打一次' },
+    field: { name: '我的故乡是地球', ep: 17, kind: 'dmgPerm', value: 10, desc: '持续到自身死亡，所有伤害 +10%' },
+    passive: { name: '归乡', kind: 'speedGrow', value: 4, max: 16, desc: '每回合速度 +4（上限 +16）' },
+  },
+
+  gomora: {
+    id: 'gomora', overlord: true, name: '哥莫拉', sub: '古代怪兽', type: 'earthMonster', typeName: '地球怪兽',
+    hp: 130, atk: 88, def: 72, spd: 50, cost: 6,
+    melee: { name: '角撞', power: 60, ep: 6, desc: '无明显效果' },
+    beamM: { name: '超振动波', power: 68, ep: 12, desc: '无明显效果' },
+    counterA: { name: '挖地', dodge: 58, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '铁壁', dodge: 38, guard: 0.32, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '甩尾攻击', power: 255, ep: 28, acc: 76, fx: 'down', downChance: 75, ultType: 'melee', desc: '75% 使敌人倒地，倒地后连锁追击，每次伤害减半、概率 -25%' },
+    field: { name: '怪兽殿下', ep: 8, kind: 'firstStrike', turns: 3, desc: '我方全队上场后第一次攻击先手' },
+    passive: { name: '蓄能', kind: 'ultBoost', value: 15, desc: '光线命中后，下次必杀 +15%' },
+  },
+
+  mephilas: {
+    id: 'mephilas', name: '美菲拉斯星人', sub: '宇宙人', type: 'cosmosMan', typeName: '宇宙人',
+    hp: 120, atk: 92, def: 68, spd: 70, cost: 8,
+    melee: { name: '抓投', power: 64, ep: 7, vsCosmos: 15, desc: '无明显效果' },
+    beamM: { name: '简易抓握光线', power: 68, ep: 12, drain: 8, clashBonus: 6, desc: '无明显效果' },
+    counterA: { name: '念力屏障', dodge: 62, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '瞬间移动', dodge: 40, guard: 0.3, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '双手光线', power: 245, ep: 30, acc: 78, clashBonus: 12, ultType: 'beam', desc: '无明显效果' },
+    field: { name: '恶魔游戏', ep: 21, kind: 'twist', turns: 2, desc: '双方获得游戏：扭转闪避/破姿态效果' },
+    passive: { name: '操控人心', kind: 'switchBoost', value: 20, desc: '换人时，换上来的队友下一次伤害 +20%' },
+  },
+
+  zetton: {
+    id: 'zetton', overlord: true, name: '杰顿', sub: '宇宙恐龙', type: 'cosmosBeast', typeName: '宇宙怪兽',
+    hp: 135, atk: 95, def: 78, spd: 60, cost: 9,
+    melee: { name: '怪力', power: 62, ep: 6, desc: '无明显效果' },
+    beamM: { name: '一兆度火球', power: 85, ep: 14, desc: '无明显效果' },
+    counterA: { name: '杰顿屏障', dodge: 70, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '瞬间移动', dodge: 42, guard: 0.4, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '杰顿终极光线', power: 300, ep: 32, acc: 80, ultType: 'beam', desc: '无明显效果' },
+    field: { name: '最终兵器', ep: 17, kind: 'statBoost', value: 20, turns: 3, desc: '全属性 +20%，3 回合' },
+    passive: { name: '光线吸收', kind: 'absorbJudge', threshold: 30, desc: '受光线伤害 <30 反击满威力，≥30 反击减半并冷却 2 回合' },
+  },
+
+  bullton: {
+    id: 'bullton', overlord: true, name: '布鲁顿', sub: '四次元怪兽', type: 'esper', typeName: '超能力怪兽',
+    hp: 100, atk: 67, def: 72, spd: 78, cost: 7,
+    melee: { name: '奇异闪光', power: 55, ep: 4, fx: 'noMelee2', desc: '造成浮空两回合，无法释放格斗技' },
+    beamM: { name: '四次元光线', power: 67, ep: 9, drain: 9, extWarp: true, desc: '延长一回合四次元扭曲' },
+    counterA: { name: '四次元屏障', dodge: 62, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '超自然现象', dodge: 52, guard: 0.3, ep: 10, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '四次元狂想', power: 122, ep: 37, acc: 100, opensWarp: true, ultType: 'beam', desc: '命中后展开四次元扭曲 2 回合' },
+    field: { name: '四次元生物', ep: 15, kind: 'alwaysHit', turns: 2, desc: '所有伤害技能必定命中，2 回合' },
+    passive: { name: '四次元扭曲', kind: 'warp', value: 60, desc: '大招命中后展开 2 回合，全队受到 <60 伤害无效化' },
+  },
+
+  dada: {
+    id: 'dada', name: '达达', sub: '三面怪人', type: 'cosmosMan', typeName: '宇宙人',
+    hp: 96, atk: 65, def: 60, spd: 75, cost: 4,
+    melee: { name: '背后偷袭', power: 45, ep: 4, desc: '使用隐身后命中 +75%' },
+    beamM: { name: '眼部射线', power: 60, ep: 10, drain: 2, desc: '无明显效果' },
+    counterA: { name: '三面变化', dodge: 65, ep: 5, vs: 'beam', faces: true, desc: '随机获得 A/B/C 面相' },
+    counterB: { name: '隐身', dodge: 70, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
+    ult: { name: '微缩化枪', power: 150, ep: 30, acc: 75, appliesShrink: true, ultType: 'beam', desc: '命中后缩小化 2 回合' },
+    field: { name: '人类标本', ep: 15, kind: 'shrinkLock', turns: 5, desc: '缩小化目标无法退场，死亡时恢复达达 5% HP' },
+    passive: { name: '缩小化', kind: 'shrink', value: 25, desc: '大招命中后，对方攻防 -25%、受伤 +10%' },
+  },
+
+  geronimon: {
+    id: 'geronimon', name: '杰罗尼蒙', sub: '怪兽酋长', type: 'esper', typeName: '超能力怪兽',
+    hp: 148, atk: 78, def: 50, spd: 65, cost: 8,
+    melee: { name: '毒羽箭', power: 75, ep: 8, fx: 'poison', desc: '造成神经中毒：每回合 -2 HP，3 回合' },
+    beamM: { name: '反重力气体', power: 70, ep: 9, drain: 10, selfStun: true, desc: '被反制成功时，自身无法行动一回合' },
+    counterA: { name: '羽箭防御', dodge: 60, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterB: { name: '替死鬼', dodge: 0, guard: 0, ep: 10, vs: 'melee', borrowCounter: true, desc: '借用队友最高防的反制 B' },
+    ult: { name: '羽箭风暴', power: 185, ep: 28, acc: 65, chase: '毒羽箭', chaseTable: [75, 45, 15], ultType: 'beam', desc: '造成伤害后 75%/45%/15% 连续追击毒羽箭' },
+    field: { name: '怪兽复活宣言', ep: 17, kind: 'extraRevive', turns: 99, desc: '我方队伍生物/地底达到 3 个时，额外获得一次被动复活' },
+    passive: { name: '怪兽复活', kind: 'revive', value: 75, fallbackHeal: true, desc: '每场一次，倒下时复活队友；无倒下队友时治疗血量最低的队友 75%，不能选自己' },
+  },
+
+  /* ---------------- 侵略地球模式专用敌人 ---------------- */
+  vtolSmall: {
+    id: 'vtolSmall', name: '小型威托', sub: '科特队战机', type: 'machine', typeName: '机械',
+    hp: 55, atk: 48, def: 25, spd: 95, cost: 4,
+    melee: { name: '机炮扫射', power: 30, ep: 3, desc: '机炮连射' },
+    beamM: { name: '小型导弹', power: 45, ep: 6, desc: '制导导弹' },
+    counterA: { name: '爬升', dodge: 55, ep: 4, vs: 'beam', desc: '拉起爬升' },
+    counterB: { name: '横滚', dodge: 45, guard: 0.15, ep: 4, vs: 'melee', desc: '横滚规避' },
+    ult: { name: '全弹发射', power: 90, ep: 12, acc: 85, ultType: 'beam', desc: '齐射' },
+    field: { name: '空中优势', ep: 6, kind: 'dodgeBoost', value: 8, turns: 2, desc: '闪避 +8，2 回合' },
+    passive: { name: '高速机体', kind: 'none', desc: '速度极快' },
+  },
+
+  vtol: {
+    id: 'vtol', name: '威托', sub: '科特队主力机', type: 'machine', typeName: '机械',
+    hp: 110, atk: 65, def: 40, spd: 82, cost: 6,
+    melee: { name: '机炮扫射', power: 38, ep: 4, desc: '机炮连射' },
+    beamM: { name: '大型导弹', power: 62, ep: 8, desc: '大型制导导弹' },
+    counterA: { name: '爬升', dodge: 50, ep: 4, vs: 'beam', desc: '拉起爬升' },
+    counterB: { name: '装甲规避', dodge: 35, guard: 0.25, ep: 5, vs: 'melee', desc: '装甲硬吃' },
+    ult: { name: '饱和轰炸', power: 150, ep: 18, acc: 80, ultType: 'beam', desc: '全弹饱和攻击' },
+    field: { name: '制空权', ep: 8, kind: 'beamBoost', value: 10, turns: 2, desc: '光线伤害 +10%，2 回合' },
+    passive: { name: '重装机体', kind: 'none', desc: '火力更强' },
+  },
+
+  ultraman: {
+    id: 'ultraman', name: '初代奥特曼', sub: '光之巨人', type: 'ultra', typeName: '光',
+    hp: 220, atk: 98, def: 78, spd: 80, cost: 9,
+    versusStats: { hp: 180, atk: 88, def: 70, spd: 80 },
+    melee: { name: '奥特格斗', power: 88, ep: 6, desc: '光之巨人的体术' },
+    beamM: { name: '斯派修姆光线', power: 130, ep: 16, desc: '双臂交叉的必杀光线' },
+    counterA: { name: '奥特屏障', dodge: 58, ep: 5, vs: 'beam', desc: '光线屏障' },
+    counterB: { name: '奥特防御', dodge: 40, guard: 0.3, ep: 5, vs: 'melee', desc: '硬吃格斗' },
+    ult: { name: '八分光轮', power: 230, ep: 30, acc: 82, ultType: 'beam', desc: '切割光轮' },
+    field: { name: '正义使者', ep: 12, kind: 'statBoost', value: 15, turns: 3, desc: '我方全属性 +15%，3 回合' },
+    passive: { name: '彩色计时器', kind: 'ultraTimer', desc: 'HP 低于 30% 时进入红区：攻击 +25%、受伤 +15%' },
+    pool: [
+      { name: '手刀', type: 'melee', power: 88, ep: 6, desc: '无明显效果' },
+      { name: '拳击', type: 'melee', power: 78, ep: 5, desc: '无明显效果' },
+      { name: '飞踢', type: 'melee', power: 80, ep: 9, desc: '无明显效果' },
+      { name: '切割光线', type: 'beam', power: 65, ep: 6, desc: '无明显效果' },
+      { name: '捕捉光环', type: 'beam', power: 50, ep: 7, fx: 'noMelee', firstStrike: true, desc: '必定先手，禁格斗一回合（对杰顿无效）' },
+      { name: '奥特念力', type: 'beam', power: 30, ep: 8, fx: 'noBeam', triggerMark: true, desc: '禁光线一回合；若对方有标记则引爆' },
+      { name: '奥特屏障', type: 'stance', dodge: 58, ep: 5, vs: 'beam', epBack: 10, desc: '反制成功后恢复 10 EP' },
+      { name: '光轮防御', type: 'stance', dodge: 68, ep: 15, vs: 'beam', counterUlt: '八分光轮', desc: '反制成功后释放八分光轮' },
+      { name: '奥特V字屏障', type: 'stance', dodge: 40, guard: 0.3, ep: 8, vs: 'melee', desc: '有效降低光线伤害' },
+      { name: '身体强度', type: 'stance', dodge: 38, guard: 0.2, ep: 2, vs: 'melee', immuneElectric: true, desc: '免疫电击伤害' },
+      { name: '八分光轮', type: 'ult', power: 230, ep: 30, acc: 82, fx: 'cut', chance: 65, ultType: 'beam', desc: '65% 造成切割' },
+      { name: '斯派修姆光线', type: 'ult', power: 200, ep: 25, acc: 86, ultType: 'beam', clashBonus: 10, desc: '对波成功额外 +10 差值' },
+      { name: '奥特攻击光线', type: 'ult', power: 300, ep: 45, acc: 76, ultType: 'beam', markOnly: true, desc: '命中不造成伤害，留下标记 3 回合' },
+    ],
+  },
+};
+
+const MON_ORDER = ['bemular', 'baltan', 'baltan2', 'neronga', 'ragon', 'greenmons', 'antlar',
+  'redking', 'zarab', 'jamila', 'gomora', 'mephilas', 'zetton', 'bullton', 'dada', 'geronimon'];
+
+const MUTEX = [['baltan', 'baltan2'], ['bullton', 'geronimon']];
+
+/* ---------------- 羁绊 ---------------- */
+const BONDS = [
+  {
+    id: 'cosmosAll', name: '宇宙人联盟', members: ['baltan', 'mephilas', 'zarab', 'baltan2'],
+    need: 2, all: 5, desc: '全属性 +5%',
+  },
+  {
+    id: 'steelFour', name: '钢魔四天王', members: ['zarab', 'mephilas', 'baltan2'],
+    need: 3, all: 10, desc: '全属性 +10%',
+  },
+  {
+    id: 'earthMon', name: '地球怪兽', members: ['ragon', 'greenmons', 'antlar', 'redking', 'gomora', 'geronimon'],
+    need: 3, all: 15, desc: '全属性 +15%',
+  },
+  {
+    id: 'duoKing', name: '怪兽双雄', members: ['redking', 'gomora'],
+    need: 2, melee: 15, beam: 15, desc: '格斗与光线伤害 +15%',
+  },
+  {
+    id: 'noHome', name: '没有故乡之人', members: ['jamila', 'baltan'],
+    need: 2, takeLess: 10, desc: '受到伤害 -10%',
+  },
+  {
+    id: 'zettonFoe', name: '奥特曼的强敌', members: ['zetton', 'bullton'],
+    need: 2, def: 10, desc: '防御 +10%',
+  },
+  {
+    id: 'dimension', name: '四次元来的挑战', members: ['bullton'],
+    need: 1, takeLess: 15, desc: '受到生物/地底伤害 -15%',
+  },
+];
+
+/* ---------------- 立绘 ---------------- */
+const PALETTE = {
+  cosmosMan: ['#2f5f95', '#7db6f0'],
+  cosmosBeast: ['#5a3a8a', '#b090f0'],
+  esper: ['#2a6a6a', '#90e0e0'],
+  earthMonster: ['#6f7d63', '#c9d6b8'],
+};
+
+function sprite(key) {
+  const d = MONSTERS[key];
+  if (!d) return '';
+  const [fill, line] = PALETTE[d.type] || PALETTE.cosmosMan;
+  return `<svg viewBox="0 0 220 200">
+    <g fill="${fill}" stroke="${line}" stroke-width="2.5" stroke-linejoin="round">
+      <path d="M110 40 L136 96 L84 96 Z"/>
+      <ellipse cx="110" cy="126" rx="56" ry="46"/>
+      <ellipse cx="110" cy="74" rx="34" ry="30"/>
+      <path d="M162 132 q38 8 44 42 q-32 -8 -50 -20 Z"/>
+      <path d="M58 114 q-30 18 -24 48 q18 -10 28 -26 Z"/>
+      <path d="M162 114 q30 18 24 48 q-18 -10 -28 -26 Z"/>
+    </g>
+    <circle cx="99" cy="70" r="5.5" fill="#dff1ff"/>
+    <circle cx="121" cy="70" r="5.5" fill="#dff1ff"/>
+    <circle cx="99" cy="70" r="2.2" fill="#0b1622"/>
+    <circle cx="121" cy="70" r="2.2" fill="#0b1622"/>
+  </svg>`;
+}
+
+/* ---------------- 工具 ---------------- */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const rnd = () => Math.random();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const $ = (sel) => document.querySelector(sel);
+
+const INVADE_STAGES = [
+  ['vtolSmall', 'vtolSmall'],
+  ['vtolSmall', 'vtolSmall', 'vtol'],
+  ['ultraman'],
+];
+let gameMode = 'versus';
+const UNLOCK_KEY = 'ultra_unlocked';
+const BONUS_KEYS = ['vtolSmall', 'vtol', 'ultraman'];
+function isUnlocked() {
+  try { return localStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) { return false; }
+}
+function unlockBonus() {
+  try { localStorage.setItem(UNLOCK_KEY, '1'); } catch (e) { /* 忽略 */ }
+}
+function pickableKeys() {
+  const base = MON_ORDER.slice();
+  if (gameMode === 'invade') return base;
+  return isUnlocked() ? [...base, ...BONUS_KEYS] : base;
+}
+let state = null;
+let selected = [];
+let loadout = {};
+let expanded = null;
+
+function freshStatus() {
+  return {
+    slow: 0,      // 迟缓：剩余次数
+    stun: 0,      // 眩晕：剩余回合
+    noMelee: 0,   // 击退/浮空：剩余回合
+    confuse: false,
+    poison: 0,    // 神经中毒：剩余回合
+    clamp: 0,     // 钳制：剩余回合
+    down: 0,      // 倒地：一次性
+    lake: 0,      // 龙森湖：回合数，双方每回合 -2 EP
+    flame: 0,     // 火焰：回合数，双方每回合 -2 HP
+    double: 0,    // 二重身：回合数
+    charge: 0,    // 蓄力层数
+    pull: 0,      // 牵引：剩余回合，必定后手
+    cut: 0,       // 切割：受到伤害 +10%
+    noBeam: 0,    // 禁光线
+    mark: 0,      // 奥特攻击光线标记
+  };
+}
+
+function freshBuffs() {
+  return {
+    accUp: 0, ultBoost: 0, weaken: 0, regenOnHit: 0, speedUp: 0,
+    copyAtk: 0, copyDef: 0, rage: 0, rageHurt: false,
+    clone: null, absorb: false, absorbCd: 0, nullify: false, fieldAura: 0, shrink: 0,
+    atkGain: 0, dmgBoost: 0, meleeAcc: 0, firstStrike: false,
+  };
+}
+
+function monPool(key) {
+  const d = MONSTERS[key];
+  if (!d) return [];
+  if (d.pool) {
+    return d.pool.map((x, i) => ({ ...x, id: key + ':p' + i, slot: 'sig' }));
+  }
+  const list = [];
+  for (const c of Object.values(COMMON)) list.push({ ...c, slot: 'common', id: c.id });
+  list.push({ ...d.melee, type: 'melee', slot: 'sig', id: key + ':melee' });
+  list.push({ ...d.beamM, type: 'beam', slot: 'sig', id: key + ':beam' });
+  list.push({ ...d.counterA, type: 'stance', slot: 'sig', id: key + ':cA' });
+  list.push({ ...d.counterB, type: 'stance', slot: 'sig', id: key + ':cB' });
+  list.push({ ...d.ult, type: d.ult.passive ? 'passive' : 'ult', slot: 'sp', id: key + ':ult' });
+  list.push({ ...d.field, type: 'field', slot: 'sp', id: key + ':field' });
+  return list;
+}
+
+function defaultLoadout(key) {
+  const d = MONSTERS[key];
+  if (d && d.pool) {
+    // 默认：手刀 / 斯派修姆光线 / 奥特屏障 / 八分光轮
+    return [key + ':p0', key + ':p11', key + ':p6', key + ':p10'];
+  }
+  return [key + ':melee', key + ':beam', key + ':cA', key + ':ult'];
+}
+
+function makeMon(key) {
+  const d = MONSTERS[key];
+  const ids = loadout[key] || defaultLoadout(key);
+  const pool = monPool(key);
+  const moves = (d.pool && gameMode === 'invade')
+    ? d.pool.map((x) => ({ ...x }))
+    : ids.map((id) => pool.find((m) => m.id === id)).filter(Boolean);
+  const vs = (d.versusStats && gameMode !== 'invade') ? d.versusStats : null;
+  const base = vs
+    ? { hp: vs.hp, atk: vs.atk, def: vs.def, spd: vs.spd }
+    : { hp: d.hp, atk: d.atk, def: d.def, spd: d.spd };
+  const m = {
+    key, name: d.name, sub: d.sub, type: d.type, typeName: d.typeName,
+    maxHp: base.hp, hp: base.hp, atk: base.atk, def: base.def, spd: base.spd, cost: d.cost,
+    ep: EP_START, moves,
+    counterBonus: 0, orbReady: false,
+    status: freshStatus(), buffs: freshBuffs(),
+    passive: d.passive, passiveBonus: 1,
+    deathSaved: false, nullified: false, cloneUses: 0,
+    faces: null,
+  };
+  return m;
+}
+
+const hpPct = (m) => m.hp / m.maxHp;
+const teamSpeed = (S) => S.team.reduce((a, m) => a + (m.hp > 0 ? m.spd : 0), 0);
+const inRedZone = () => state.timer <= 3;
+
+const effAtk = (m) => Math.round((m.atk + (m.buffs.copyAtk || 0) + (m.buffs.atkGain || 0)) * (m.buffs.shrink ? 0.75 : 1));
+const effDef = (m) => Math.round((m.def + (m.buffs.copyDef || 0)) * (m.buffs.shrink ? 0.75 : 1));
+const effSpd = (m) => m.spd + (m.buffs.speedUp || 0);
+
+const canUse = (m, move) => {
+  if (move.passive) return false;
+  if (m.ep < (move.ep || 0)) return false;
+  if (move.type === 'melee' && m.status.noMelee > 0) return false;
+  if (move.type === 'beam' && m.status.noBeam > 0) return false;
+  if (move.oncePerBattle && m.bombUsed) return false;
+  return true;
+};
+
+function log(text, cls) {
+  if (!state) return;
+  state.log.push({ text, cls: cls || '' });
+  if (state.log.length > 180) state.log.shift();
+  renderLog();
+}
+
+/* ---------------- 羁绊结算 ---------------- */
+function applyBonds(team) {
+  const keys = team.map((m) => m.key);
+  const active = [];
+  for (const b of BONDS) {
+    const hit = b.members.filter((k) => keys.includes(k)).length;
+    if (hit >= b.need) active.push(b);
+  }
+  let allPct = 0, defPct = 0;
+  for (const b of active) {
+    allPct += b.all || 0;
+    defPct += b.def || 0;
+  }
+  const mul = 1 + allPct / 100;
+  for (const m of team) {
+    m.maxHp = Math.round(m.maxHp * mul);
+    m.hp = Math.round(m.hp * mul);
+    m.atk = Math.round(m.atk * mul);
+    m.def = Math.round(m.def * (1 + (allPct + defPct) / 100));
+    m.spd = Math.round(m.spd * mul);
+  }
+  return active;
+}
+
+/* ---------------- 开局 ---------------- */
+function startGame(playerKeys, enemyTeamKeys, mode) {
+  gameMode = mode || 'versus';
+  const teamP = playerKeys.map((k) => makeMon(k));
+  const enemyKeys = enemyTeamKeys && enemyTeamKeys.length
+    ? enemyTeamKeys
+    : (gameMode === 'invade' ? INVADE_STAGES[0] : pickEnemyTeam());
+  const teamE = enemyKeys.map((k) => makeMon(k));
+  const bondsP = applyBonds(teamP);
+  const bondsE = applyBonds(teamE);
+
+  state = {
+    player: { team: teamP, active: 0, switches: MAX_SWITCH, bonds: bondsP },
+    enemy: { team: teamE, active: 0, switches: MAX_SWITCH, bonds: bondsE },
+    mode: gameMode, stage: 1, turn: 1, timer: MAX_TIMER, busy: false, over: false, winner: null,
+    log: [], field: null, warp: null,
+    playerHistory: [], enemyHistory: [],
+    pendingSwitch: null,
+  };
+
+  // 扎拉布开场化形
+  for (const S of [state.player, state.enemy]) {
+    for (const m of S.team) {
+      if (m.passive?.kind === 'openClone') startClone(m);
+    }
+  }
+
+  $('#pick').hidden = true;
+  $('#battle').hidden = false;
+  $('#banner').hidden = true;
+  $('#log').innerHTML = '';
+
+  log('战斗开始', 'sys');
+  log(`你：${teamP.map((m) => m.name).join(' / ')}`, 'dim');
+  log(`敌：${teamE.map((m) => m.name).join(' / ')}`, 'dim');
+  if (bondsP.length) log(`我方羁绊：${bondsP.map((b) => `${b.name}(${b.desc})`).join('、')}`, 'sys');
+  if (bondsE.length) log(`敌方羁绊：${bondsE.map((b) => b.name).join('、')}`, 'sys');
+  log(`计时器 ${MAX_TIMER} 回合，到点比队伍总血量。`, 'dim');
+
+  render();
+}
+
+const BASIC_MOVES = [
+  { ...COMMON.swift, type: 'melee' },
+  { ...COMMON.iron, type: 'melee' },
+  { ...COMMON.beam, type: 'beam' },
+  { ...COMMON.scatter, type: 'beam' },
+];
+
+function startClone(m) {
+  m.buffs.clone = {
+    maxHp: m.maxHp, hp: m.hp, atk: m.atk, def: m.def, spd: m.spd, moves: m.moves,
+  };
+  const r = m.passive.value / 100;
+  m.maxHp = Math.round(m.maxHp * r);
+  m.hp = m.maxHp;
+  // 假奥特曼防御比本体低
+  m.def = Math.round(m.def * 0.6);
+  // 假奥特曼只有基础技能
+  m.moves = BASIC_MOVES.map((x) => ({ ...x }));
+}
+
+function pickEnemyTeam() {
+  const pool = MON_ORDER.slice();
+  const team = [];
+  let budget = TEAM_COST;
+  while (team.length < 3 && pool.length) {
+    const i = Math.floor(rnd() * pool.length);
+    const key = pool.splice(i, 1)[0];
+    const c = MONSTERS[key].cost;
+    if (c <= budget) { team.push(key); budget -= c; }
+  }
+  return team;
+}
+
+/* ---------------- 伤害 ---------------- */
+function rollHit(att, def, move, defMove) {
+  const defType = defMove.type;
+  const ab = att.buffs;
+  const db = def.buffs;
+  let dodge = 0, guard = 0, mult = 1;
+  let note = '';
+
+  // 必中（布鲁顿领域）
+  const alwaysHit = state && state.field && state.field.kind === 'alwaysHit';
+
+  if (move.type === 'beam' && db.nullify) {
+    return { dmg: 0, kind: 'nullify', note: '反射板无效化' };
+  }
+  // 巴尔坦二世：光波屏障 45% 无效光线
+  if (move.type === 'beam' && defMove.shieldLight && rnd() * 100 < defMove.shieldLight) {
+    def.buffs.nullify = false;
+    return { dmg: 0, kind: 'nullify', note: '光波屏障无效化' };
+  }
+  if (move.type === 'beam' && def.passive?.kind === 'dodgeNullify' && def.buffs.nullify) {
+    def.buffs.nullify = false;
+    return { dmg: 0, kind: 'nullify', note: '反射板免疫光线' };
+  }
+
+  if (move.type === 'ult' && !move.selfDestruct) {
+    const acc = (move.acc || 100) + (effSpd(att) - effSpd(def)) * 0.4 + ab.accUp
+      + (move.type === 'melee' ? ab.meleeAcc : 0);
+    if (!alwaysHit && rnd() * 100 > acc) return { dmg: 0, kind: 'miss', note: '必杀落空' };
+  }
+
+  if (defType === 'stance') {
+    if (move.type === 'ult') {
+      guard = defMove.vs === 'beam' ? COUNTER_A_GUARD : (defMove.guard || 0);
+      note = '反制挡下';
+    } else if (defMove.borrowCounter) {
+      const side = state.player.team.includes(def) ? state.player : state.enemy;
+      const best = side.team.filter((m) => m !== def && m.hp > 0).sort((a, b) => b.def - a.def)[0];
+      const bc = best ? best.moves.find((m) => m.type === 'stance' && m.vs === 'melee') : null;
+      if (bc) { dodge = bc.dodge; guard = bc.guard; note = `替死鬼（借 ${best.name}）`; }
+    } else {
+      const same = (move.type === 'melee' && defMove.vs === 'melee')
+        || (move.type === 'beam' && defMove.vs === 'beam');
+      if (same) {
+        dodge = defMove.dodge || 0;
+        guard = defMove.guard || 0;
+        note = '被反制';
+      } else {
+        mult = BREAK;
+        note = '破姿态';
+      }
+    }
+  } else if (defType === 'melee' || defType === 'beam') {
+    if (move.type !== defType && effSpd(att) > effSpd(def)) {
+      mult = BREAK;
+      note = '破姿态';
+    }
+  }
+
+  if (move.selfDestruct && !move.canDodge) dodge = 0;
+  if (alwaysHit) dodge = 0;
+
+  // 美菲拉斯·恶魔游戏：我方被闪避 → 扭转必中
+  const attSide = state.player.team.includes(att) ? state.player : state.enemy;
+  const defSideRef = state.player.team.includes(def) ? state.player : state.enemy;
+  if (state.field?.kind === 'twist' && state.field.owner === attSide && dodge > 0) {
+    dodge = 0;
+    note = '游戏扭转（必中）';
+  }
+
+  if (defMove.chargeDodge && def.status.charge > 0) {
+    dodge = Math.min(95, dodge + def.status.charge * defMove.chargeDodge);
+  }
+  if (def.buffs.fieldAura && state.field && state.field.name === '沙漠化') {
+    dodge = Math.min(95, dodge + def.buffs.fieldAura);
+  }
+  const defSide = state.player.team.includes(def) ? state.player : state.enemy;
+  const antlar = defSide.team[defSide.active];
+  if (antlar?.passive?.kind === 'fieldDodge' && state.field) {
+    dodge = Math.min(95, dodge + antlar.passive.value);
+  }
+
+  if (dodge > 0 && rnd() * 100 < dodge) {
+    return { dmg: 0, kind: 'dodge', note };
+  }
+
+  let dmg = move.power * (effAtk(att) / effDef(def)) * 0.16 + 2;
+  dmg *= mult;
+  dmg *= typeMult(att, def);
+  if (att.counterBonus) dmg *= att.counterBonus;
+  if (def.buffs.shrink) dmg *= 1.1;
+  if (def.status.cut > 0) dmg *= 1.1;
+  if (move.electric && defMove.immuneElectric) dmg = 0;
+  if (att.passive?.kind === 'rage') dmg *= 1 + att.passive.value / 100;
+  // 奥特曼彩色计时器：红区时攻防变化
+  if (att.passive?.kind === 'ultraTimer' && hpPct(att) < 0.3) dmg *= 1.25;
+  if (def.passive?.kind === 'ultraTimer' && hpPct(def) < 0.3) dmg *= 1.15;
+  if (def.passive?.kind === 'rage') dmg *= 1 + def.passive.hurt / 100;
+  if (att.passiveBonus > 1) dmg *= att.passiveBonus;
+  if (ab.dmgBoost) dmg *= 1 + ab.dmgBoost / 100;
+  if (fieldBoost(att, move)) dmg *= 1 + fieldBoost(att, move) / 100;
+  // 贾米拉：我的故乡是地球
+  if (state.field?.kind === 'dmgPerm' && state.field.owner === attSide) dmg *= 1.1;
+  // 美菲拉斯：被破姿态时伤害减半
+  if (state.field?.kind === 'twist' && state.field.owner === defSideRef && mult === BREAK) {
+    dmg *= 0.5;
+  }
+  if (ab.ultBoost && move.type === 'ult') dmg *= 1 + ab.ultBoost / 100;
+  // 巴尔坦：拥有二重身时大招伤害翻倍
+  if (move.doubleBonus && att.status.double > 0) dmg *= 2;
+  // 美菲拉斯抓投：对宇宙人 +15%
+  if (move.vsCosmos && def.type === 'cosmosMan') dmg *= 1 + move.vsCosmos / 100;
+  // 对波加成
+  if (move.clashBonus) dmg += move.clashBonus;
+  if (db.weaken) dmg *= 1 - db.weaken / 100;
+  let guardVal = guard;
+  if (move.guardFactor) guardVal *= move.guardFactor;
+  if (guardVal > 0) dmg *= 1 - guardVal;
+  if (inRedZone()) dmg *= 1.2;
+  dmg *= 0.9 + rnd() * 0.2;
+
+  // 二重身：受到超过当前血量一半的伤害时，65% 消耗替身免伤
+  if (def.status.double > 0 && dmg > def.hp / 2 && rnd() * 100 < 65) {
+    def.status.double = 0;
+    return { dmg: 0, kind: 'dodge', note: '二重身替身' };
+  }
+
+  let absorbJudge = 0;
+  if (move.type === 'beam' && def.passive?.kind === 'absorbJudge') {
+    absorbJudge = Math.round(move.power * (effAtk(att) / effDef(def)) * 0.16 + 2);
+  }
+
+  return { dmg: Math.max(1, Math.round(dmg)), kind: 'hit', note, judge: absorbJudge };
+}
+
+function fieldBoost(att, move) {
+  const f = state.field;
+  if (!f) return 0;
+  if (f.kind === 'cosmosBoost' && (att.type === 'cosmosMan' || att.type === 'cosmosBeast')) return f.value;
+  if (f.kind === 'beamBoost' && move.type === 'beam') return f.value;
+  if (f.kind === 'typeBoost' && f.types.includes(att.type)) return f.value;
+  return 0;
+}
+
+/* ---------------- 一回合 ---------------- */
+async function playTurn(action) {
+  if (!state || state.busy || state.over) return;
+  state.busy = true;
+  renderActions();
+
+  const P = state.player;
+  const E = state.enemy;
+  const pMon = P.team[P.active];
+  const eMon = E.team[E.active];
+
+  // 眩晕：跳过整个回合
+  if (pMon.status.stun > 0) {
+    pMon.status.stun--;
+    log(`你 · ${pMon.name} 眩晕中，无法行动`, 'dim');
+    await endTurnOnly(P, E);
+    return;
+  }
+
+  const eAction = aiChoose(E, P);
+  recordHistory(state.playerHistory, action);
+  recordHistory(state.enemyHistory, eAction);
+
+  log(`── 第 ${state.turn} 回合 ──`, 'turn');
+
+
+  const pFastSwitch = action.kind === 'switch' && teamSpeed(P) > teamSpeed(E);
+
+  if (action.kind === 'switch') {
+    const oldMon = P.team[P.active];
+    // 主动换人解除假奥特曼状态
+    if (oldMon.buffs.clone) {
+      reviveClone(oldMon);
+      log(`　${oldMon.name} 解除拟态，变回本体`, 'sys');
+    }
+    // 达达·人类标本：被缩小化的目标无法主动退场
+    if (state.field?.kind === 'shrinkLock' && state.field.owner === E && oldMon.buffs.shrink > 0) {
+      log('缩小化锁定，你无法换下这只', 'dim');
+      state.busy = false;
+      state.pendingSwitch = null;
+      render();
+      renderActions();
+      return;
+    }
+    P.switches--;
+    P.active = action.next;
+    if (oldMon.passive?.kind === 'switchBoost') {
+      P.team[P.active].buffs.dmgBoost = oldMon.passive.value;
+      log(`　操控人心：${P.team[P.active].name} 下一次伤害 +${oldMon.passive.value}%`, 'ep');
+    }
+    log(`你换上 ${P.team[P.active].name}`, 'act');
+  }
+  if (eAction.kind === 'switch') {
+    E.switches--;
+    E.active = eAction.next;
+    log(`对手换上 ${E.team[E.active].name}`, 'act');
+  }
+
+  if (action.kind === 'skip') {
+    P.team[P.active].ep = clamp(P.team[P.active].ep + 5, 0, EP_MAX);
+    log('你跳过了这回合，EP +5', 'ep');
+  }
+
+  render();
+  await sleep(320);
+
+  const pNow = P.team[P.active];
+  const eNow = E.team[E.active];
+
+  let pMustDefend = action.kind === 'switch' && !pFastSwitch;
+
+  const pMove = action.kind === 'move' ? action.move
+    : action.kind === 'switch' && action.follow ? action.follow : null;
+  const eMove = eAction.kind === 'move' ? eAction.move
+    : eAction.kind === 'switch' && eAction.follow ? eAction.follow : null;
+
+  // 眩晕：AI 侧
+  if (eNow.status.stun > 0) {
+    eNow.status.stun--;
+    log(`对手 · ${eNow.name} 眩晕中，无法行动`, 'dim');
+    await endTurnOnly(P, E);
+    return;
+  }
+
+  // 击退/浮空：格斗技失效
+  const pMeleeBlocked = pMove?.type === 'melee' && pNow.status.noMelee > 0;
+  const eMeleeBlocked = eMove?.type === 'melee' && eNow.status.noMelee > 0;
+  if (pMeleeBlocked) log(`你 · ${pNow.name} 被压制，格斗技无法使用`, 'dim');
+  if (eMeleeBlocked) log(`对手 · ${eNow.name} 被压制，格斗技无法使用`, 'dim');
+
+  const pOrb = pMove && pMove.orbFirst && pNow.orbReady;
+  const eOrb = eMove && eMove.orbFirst && eNow.orbReady;
+
+  // 对波：双方都出光线
+  if (action.kind === 'move' && eAction.kind === 'move'
+      && isBeamMove(pMove) && isBeamMove(eMove)
+      && !pMeleeBlocked && !eMeleeBlocked) {
+    await resolveClash(P, E, pMove, eMove);
+    await endTurnOnly(P, E);
+    return;
+  }
+
+  const order = [];
+  if (pMove && !pMeleeBlocked) order.push({ side: 'p', move: pMove });
+  if (eMove && !eMeleeBlocked) order.push({ side: 'e', move: eMove });
+
+  if (order.length === 2) {
+    let pFirst;
+    if (pOrb && !eOrb) pFirst = true;
+    else if (eOrb && !pOrb) pFirst = false;
+    else if (pNow.buffs.firstStrike) pFirst = true;
+    else if (eNow.buffs.firstStrike) pFirst = false;
+    else if (pNow.status.slow > 0) pFirst = false;
+    else if (eNow.status.slow > 0) pFirst = true;
+    else if (action.kind === 'switch' && pFastSwitch) pFirst = false;
+    else if (eAction.kind === 'switch') pFirst = true;
+    else pFirst = effSpd(pNow) > effSpd(eNow) || (effSpd(pNow) === effSpd(eNow) && rnd() < 0.5);
+    order.sort((a, b) => {
+      const ra = a.side === 'p' ? (pFirst ? 0 : 1) : (pFirst ? 1 : 0);
+      const rb = b.side === 'p' ? (pFirst ? 0 : 1) : (pFirst ? 1 : 0);
+      return ra - rb;
+    });
+  }
+
+  const pStart = P.active;
+  const eStart = E.active;
+
+  for (const step of order) {
+    if (state.over) break;
+    if (step.side === 'p') {
+      if (pMustDefend && step.move.type !== 'stance') continue;
+      await execMove(P, E, step.move, eMove, pStart);
+    } else {
+      await execMove(E, P, step.move, pMove, eStart);
+    }
+    render();
+    await sleep(240);
+  }
+
+  await endTurnOnly(P, E);
+}
+
+async function endTurnOnly(P, E) {
+  if (!state.over) {
+    endOfTurn();
+    checkOver();
+  }
+  if (!state.over) state.turn++;
+  state.busy = false;
+  state.pendingSwitch = null;
+  render();
+  renderActions();
+}
+
+function recordHistory(arr, action) {
+  const t = action && action.kind === 'move' ? action.move.type
+    : action && action.kind === 'skip' ? 'skip' : 'switch';
+  arr.push(t);
+  if (arr.length > 6) arr.shift();
+}
+
+/* ---------------- 对波 ---------------- */
+const isBeamMove = (m) => m && (m.type === 'beam' || (m.type === 'ult' && m.ultType === 'beam'));
+
+async function resolveClash(P, E, pMove, eMove) {
+  const pMon = P.team[P.active];
+  const eMon = E.team[E.active];
+
+  log('双方同时放出光线 —— 对波！', 'sys');
+
+  pMon.ep = Math.max(0, pMon.ep - (pMove.ep || 0));
+  eMon.ep = Math.max(0, eMon.ep - (eMove.ep || 0));
+
+  const pRes = rollHit(pMon, eMon, pMove, eMove);
+  const eRes = rollHit(eMon, pMon, eMove, pMove);
+  const D1 = pRes.dmg;
+  const D2 = eRes.dmg;
+  const pWin = D1 >= D2;
+  const diff = Math.abs(D1 - D2);
+  const winnerDmg = Math.max(D1, D2);
+
+  log(`　你 ${D1}　对　敌 ${D2}　差值 ${diff}`, 'act');
+
+  const playerCost = pMove.ep || 0;
+  const pCanSpend = pMon.ep >= playerCost;
+  const eCost = eMove.ep || 0;
+  const eCanSpend = eMon.ep >= eCost;
+
+  let pSpend = false;
+  if (pCanSpend) {
+    pSpend = await askClash(diff, pWin, playerCost);
+    if (pSpend) pMon.ep = Math.max(0, pMon.ep - playerCost);
+  }
+
+  let eSpend = false;
+  if (eCanSpend) {
+    const worth = diff >= Math.max(15, Math.round(winnerDmg * 0.35));
+    const r = rnd();
+    eSpend = worth ? r < 0.75 : r < 0.25;
+    if (eSpend) eMon.ep = Math.max(0, eMon.ep - eCost);
+  }
+
+  const loserSpend = pWin ? eSpend : pSpend;
+  const winnerSpend = pWin ? pSpend : eSpend;
+
+  let loserDmg = 0;
+  let winnerDmg2 = 0;
+  let tag = '';
+  let newLoserSide = pWin ? 'e' : 'p';
+
+  if (!loserSpend && !winnerSpend) {
+    loserDmg = diff;
+    tag = '差值全吃';
+  } else if (!loserSpend && winnerSpend) {
+    loserDmg = winnerDmg + diff;
+    tag = '赢家追加，原伤害 + 差值';
+  } else {
+    // 输家追加 / 都追加：第二次判定（双方伤害各叠加两次）
+    const D1n = D1 * 2;
+    const D2n = D2 * 2;
+    const newDiff = Math.abs(D1n - D2n);
+    const newPWin = D1n >= D2n;
+    newLoserSide = newPWin ? 'e' : 'p';
+    loserDmg = diff + newDiff;
+    tag = newPWin === pWin
+      ? `两次判定，差值相加 ${diff}+${newDiff}`
+      : `第二次判定翻盘！差值相加 ${diff}+${newDiff}`;
+  }
+
+  const loserMon = newLoserSide === 'p' ? pMon : eMon;
+  const winnerMon = newLoserSide === 'p' ? eMon : pMon;
+
+  loserMon.hp = Math.max(0, loserMon.hp - loserDmg);
+  log(`　${loserMon.name} 吃下 ${loserDmg} 伤害（${tag}）`, 'hit');
+  flash(newLoserSide === 'e' ? 'enemy' : 'player');
+
+  if (winnerDmg2 > 0) {
+    winnerMon.hp = Math.max(0, winnerMon.hp - winnerDmg2);
+    log(`　${winnerMon.name} 被反弹 ${winnerDmg2} 伤害`, 'hit');
+    flash(newLoserSide === 'p' ? 'player' : 'enemy');
+  }
+
+  if (pMove.orbFirst) pMon.orbReady = false;
+  if (eMove.orbFirst) eMon.orbReady = false;
+
+  render();
+  await sleep(400);
+  checkOver();
+}
+
+function askClash(diff, isWinner, cost) {
+  return new Promise((resolve) => {
+    // 无 DOM 环境（测试）直接不追加
+    if (!document.body) { resolve(false); return; }
+    state.clash = { diff, isWinner, cost, resolve };
+    renderClash();
+  });
+}
+
+function renderClash() {
+  const box = $('#clashBox');
+  if (!box) return;
+  const c = state.clash;
+  if (!c) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="clash-title">对波判定</div>
+    <div class="clash-diff">差值 ${c.diff}　${c.isWinner ? '你是赢家' : '你是输家'}</div>
+    <div class="clash-btns">
+      <button id="clashSpend" type="button">追加 ${c.cost} EP</button>
+      <button id="clashPass" type="button">不追加</button>
+    </div>
+  `;
+  $('#clashSpend').addEventListener('click', () => {
+    const r = c.resolve;
+    state.clash = null;
+    renderClash();
+    r(true);
+  });
+  $('#clashPass').addEventListener('click', () => {
+    const r = c.resolve;
+    state.clash = null;
+    renderClash();
+    r(false);
+  });
+}
+
+/* ---------------- 单个技能 ---------------- */
+async function execMove(S, T, move, foeMove, activeAtStart) {
+  if (state.over) return;
+  const sideName = S === state.player ? '你' : '敌';
+  if (S.active !== activeAtStart) {
+    log(`　${S.team[S.active].name} 刚上场，来不及出手`, 'dim');
+    return;
+  }
+  const att = S.team[S.active];
+  const def = T.team[T.active];
+  if (att.hp <= 0) return;
+  if (move.passive) return;
+
+  // 拉贡原子爆炸：两段式
+  if (move.twoPhase) {
+    const rich = att.ep >= 60;
+    if (rich) {
+      move = { ...move, keepHp: 1, guardFactor: 0.1, canDodge: false };
+    } else {
+      move = { ...move, power: 175, keepHp: 0, guardFactor: 0.2, canDodge: true, allEp: true };
+      log(`　EP 不足 60，威力降为 175`, 'dim');
+    }
+  }
+
+  // 安东拉：砂尘暴自动展开沙漠化
+  if (move.autoField && (!state.field || state.field.name !== move.autoField)) {
+    state.field = { name: '沙漠化', kind: 'dodgeBoost', value: 15, turns: 3, owner: S, charges: 0, drained: null };
+    log('　自动展开沙漠化', 'sys');
+  }
+
+  let cost = move.ep || 0;
+  if (move.allEp) cost = att.ep;
+  if (move.selfDestruct && att.passive?.kind === 'bombDiscount' && hpPct(att) <= 0.3) {
+    cost = Math.max(0, cost - att.passive.value);
+  }
+  if (att.ep < cost) {
+    att.ep = clamp(att.ep + 10, 0, EP_MAX);
+    log(`${sideName} · ${att.name} EP 不足，只能蓄能`, 'ep');
+    return;
+  }
+  att.ep = Math.max(0, att.ep - cost);
+
+  if (move.type === 'stance') {
+    log(`${sideName} · ${att.name} 使用 ${move.name}`, 'act');
+    if (move.orbSet) { att.orbReady = true; log(`　蓄势待发，下一手冲撞先制`, 'ep'); }
+    if (move.faces) applyFace(att);
+    if (move.accUpMelee) {
+      att.buffs.meleeAcc = move.accUpMelee;
+      log(`　巨颚命中率 +${move.accUpMelee}%`, 'ep');
+    }
+    render();
+    return;
+  }
+
+  if (move.type === 'field') {
+    const f = {
+      name: move.name, kind: move.kind, value: move.value,
+      types: move.types, turns: move.turns, owner: S,
+      charges: 0, drained: null,
+    };
+    // 扎拉布：吸取双方宇宙角色 5% 攻防
+    if (move.kind === 'drainStats') {
+      const drained = [];
+      for (const side of [state.player, state.enemy]) {
+        for (const mm of side.team) {
+          if (mm.hp > 0 && mm.type === 'cosmosMan' && mm !== att) {
+            const da = Math.round(mm.atk * move.value / 100);
+            const dd = Math.round(mm.def * move.value / 100);
+            mm.atk -= da; mm.def -= dd;
+            att.atk += da; att.def += dd;
+            drained.push({ mon: mm, atk: da, def: dd });
+          }
+        }
+      }
+      f.drained = drained;
+      log(`　吸取 ${drained.length} 名宇宙角色的攻防`, 'ep');
+    }
+    // 杰罗尼蒙：队伍生物/地底 ≥3 时，额外一次复活
+    if (move.kind === 'extraRevive') {
+      const count = S.team.filter((mm) => mm.type !== 'cosmosMan').length;
+      if (count >= 3) {
+        S.extraRevive = true;
+        log(`　额外复活效果生效（生物/地底 ${count} 只）`, 'ep');
+      } else {
+        log(`　生物/地底只有 ${count} 只，不触发额外复活`, 'dim');
+      }
+    }
+    state.field = f;
+    log(`${sideName} · ${att.name} 展开 ${move.name}`, 'sys');
+    log(`　${move.desc}`, 'dim');
+    render();
+    await sleep(240);
+    return;
+  }
+
+  log(`${sideName} · ${att.name} 使用 ${move.name}`, 'act');
+  render();
+  await sleep(180);
+
+  const res = rollHit(att, def, move, foeMove || { type: 'none' });
+
+  if (res.kind === 'miss') { log(`　${res.note}`, 'miss'); return; }
+  if (res.kind === 'nullify') { def.buffs.nullify = false; log(`　${res.note}`, 'miss'); return; }
+  if (res.kind === 'dodge') {
+    log(`　${def.name} 闪过这一击`, 'miss');
+    if (foeMove && foeMove.type === 'stance') {
+      def.counterBonus = 1.3;
+      log(`　${def.name} 抓住机会，下一手 ×1.3`, 'ep');
+    }
+    if (def.passive?.kind === 'dodgeBoost') {
+      def.passiveBonus = 1 + def.passive.value / 100;
+    }
+    if (def.passive?.kind === 'dodgeNullify') {
+      def.buffs.nullify = true;
+      log(`　${def.name} 反射板待发`, 'ep');
+    }
+    if (foeMove?.givesDouble && def.status.double <= 0) {
+      def.status.double = 3;
+      log(`　${def.name} 获得二重身（3 回合）`, 'ep');
+    }
+    if (foeMove?.epBack) {
+      def.ep = clamp(def.ep + foeMove.epBack, 0, EP_MAX);
+      log(`　${def.name} 恢复 ${foeMove.epBack} EP`, 'ep');
+    }
+    if (foeMove?.counterUlt) {
+      const cu = def.moves.find((mm) => mm.name === foeMove.counterUlt);
+      if (cu) {
+        const r2 = rollHit(def, att, cu, { type: 'melee' });
+        if (r2.kind === 'hit') {
+          att.hp = Math.max(0, att.hp - r2.dmg);
+          log(`　${def.name} 反手 ${cu.name}！${att.name} -${r2.dmg} HP`, 'hit');
+          flash(S === state.player ? 'player' : 'enemy');
+        }
+      }
+    }
+    return;
+  }
+
+  // 混乱：打自己
+  let target = def;
+  if (att.status.confuse) {
+    att.status.confuse = false;
+    target = att;
+    log(`　${att.name} 陷入混乱，攻击了自己`, 'sys');
+  }
+
+  // 四次元扭曲
+  if (state.warp && state.warp.owner === T && res.dmg < state.warp.value && target === def) {
+    log(`　四次元扭曲：${res.dmg} 点伤害被无效化`, 'miss');
+    return;
+  }
+
+  // 奥特攻击光线：命中不造成伤害，只留标记
+  if (move.markOnly) {
+    target.status.mark = 3;
+    log(`　${target.name} 被标记（3 回合）`, 'sys');
+    return;
+  }
+
+  const hpBefore = target.hp;
+  target.hp = Math.max(0, target.hp - res.dmg);
+  log(`　${target.name} -${res.dmg} HP　${res.note}`, 'hit');
+  flash(T === state.player ? 'player' : 'enemy');
+
+  // 技能效果
+  if (move.triggerMark && target.status.mark > 0) {
+    target.status.mark = 0;
+    const atkMove = att.moves.find((mm) => mm.name === '奥特攻击光线');
+    if (atkMove) {
+      const boom = Math.max(1, Math.round(atkMove.power * (effAtk(att) / effDef(target)) * 0.16 + 2));
+      target.hp = Math.max(0, target.hp - boom);
+      log(`　标记被引爆！${target.name} -${boom} HP`, 'sys');
+    }
+  }
+  if (move.fx && target === def) applyFx(target, move, att);
+
+  // 龙森湖 / 火焰：双方
+  if (move.lakeChance && rnd() * 100 < move.lakeChance) {
+    att.status.lake = 2;
+    def.status.lake = 2;
+    log('　龙森湖泛起（双方 2 回合，每回合 -2 EP）', 'sys');
+  }
+  if (move.flameChance && rnd() * 100 < move.flameChance) {
+    att.status.flame = 3;
+    def.status.flame = 3;
+    log('　火焰蔓延（双方 3 回合，每回合 -2 HP）', 'sys');
+  }
+  // 牵引：目标必定后手
+  if (move.pull && target === def) {
+    target.status.pull = move.pull;
+    log(`　${target.name} 被牵引（${move.pull} 回合必定后手）`, 'sys');
+  }
+  // 连击
+  if (move.combo && target === def && target.hp > 0 && rnd() * 100 < move.combo) {
+    const extra = Math.max(1, Math.round(move.power * (effAtk(att) / effDef(target)) * 0.16 + 2));
+    target.hp = Math.max(0, target.hp - extra);
+    log(`　投石连击！${target.name} -${extra} HP`, 'hit');
+  }
+
+  // 格斗回 EP
+  if (move.type === 'melee') {
+    const gain = 5 + Math.floor(rnd() * 4);
+    att.ep = clamp(att.ep + gain, 0, EP_MAX);
+    log(`　${att.name} 格斗回复 ${gain} EP`, 'ep');
+  }
+
+  // 内隆嘎·吸电力场：命中蓄力
+  if (state.field?.kind === 'chargeField' && state.field.owner === S) {
+    const neronga = S.team.find((mm) => mm.key === 'neronga');
+    if (neronga) {
+      neronga.status.charge = (neronga.status.charge || 0) + 1;
+    }
+    state.field.charges = neronga ? neronga.status.charge : state.field.charges + 1;
+    if (state.field.charges >= 3) {
+      state.field.charges = 0;
+      if (neronga) neronga.status.charge = 0;
+      if (neronga) {
+        const foe = T.team[T.active];
+        const extraDmg = Math.max(1, Math.round(250 * (effAtk(neronga) / effDef(foe)) * 0.16 + 2));
+        foe.hp = Math.max(0, foe.hp - extraDmg);
+        log(`　吸电力场蓄满！${neronga.name} 自动全身放电，${foe.name} -${extraDmg} HP`, 'sys');
+        flash(T === state.player ? 'player' : 'enemy');
+      }
+    } else {
+      log(`　吸电力场蓄力 ${state.field.charges}/3`, 'ep');
+    }
+  }
+
+  // 被动命中
+  if (att.passive?.kind === 'stackAtk') {
+    att.buffs.atkGain = Math.min((att.buffs.atkGain || 0) + att.passive.value, att.passive.max);
+    att.hp = Math.min(att.maxHp, att.hp + att.passive.value);
+  }
+  if (att.passive?.kind === 'ultBoost' && move.type === 'beam') {
+    att.buffs.ultBoost = att.passive.value;
+  }
+
+  // 防守方被动
+  if (target.passive?.kind === 'regenFlat') {
+    target.hp = Math.min(target.maxHp, target.hp + target.passive.value);
+  } else if (target.passive?.kind === 'regen' || target.passive?.kind === 'regenSplit') {
+    const rate = target.passive.kind === 'regen'
+      ? target.passive.value
+      : (move.type === 'melee' ? target.passive.melee : target.passive.beam);
+    const heal = Math.round(res.dmg * rate / 100);
+    target.hp = Math.min(target.maxHp, target.hp + heal);
+  }
+  if (target.passive?.kind === 'absorbJudge' && move.type === 'beam' && (target.buffs.absorbCd || 0) <= 0) {
+    const backUlt = target.moves.find((m) => m.type === 'ult');
+    if (backUlt) {
+      let back = backUlt.power;
+      if (res.judge >= target.passive.threshold) {
+        back = Math.round(back * 0.5);
+        target.buffs.absorbCd = 2;
+        log('　光线吸收冷却 2 回合', 'dim');
+      }
+      const dmg2 = Math.max(1, Math.round(back * (effAtk(target) / effDef(att)) * 0.16 + 2));
+      att.hp = Math.max(0, att.hp - dmg2);
+      log(`　${target.name} 吸收光线，返击 ${dmg2} 伤害`, 'hit');
+    }
+  }
+  if (target.hp <= 0 && target.passive?.kind === 'openClone' && target.buffs.clone) {
+    const overflow = res.dmg - hpBefore;
+    reviveClone(target);
+    if (overflow > 0) {
+      target.hp = Math.max(0, target.hp - overflow);
+      log(`　假奥特曼被击穿，溢出 ${overflow} 伤害打到本体`, 'sys');
+    }
+  }
+
+  // 缩小化
+  if (move.appliesShrink && att.passive?.kind === 'shrink') {
+    target.buffs.shrink = 3;
+    log(`　${target.name} 被缩小化`, 'sys');
+  }
+
+  // 倒地连锁追击
+  if (target.status.down > 0 && target.hp > 0) {
+    target.status.down = 0;
+    let chance = 75;
+    let dmgBase = move.power;
+    let chain = 0;
+    while (target.hp > 0 && chain < 3) {
+      dmgBase *= 0.5;
+      const extra = Math.max(1, Math.round(dmgBase * (effAtk(att) / effDef(target)) * 0.16 + 2));
+      target.hp = Math.max(0, target.hp - extra);
+      log(`　倒地追击 ${chain + 1} -${extra} HP`, 'hit');
+      chain++;
+      chance -= 25;
+      if (chance <= 0) break;
+      if (rnd() * 100 >= chance) break;
+      log(`　${target.name} 再次倒地`, 'sys');
+    }
+  }
+
+  // 一次性大招标记
+  if (move.oncePerBattle) att.bombUsed = true;
+
+  // 自爆
+  if (move.selfDestruct) {
+    if (move.keepHp) {
+      att.hp = Math.min(att.hp, move.keepHp);
+      log(`　${att.name} 自爆，被冲击力压到 ${att.hp} HP`, 'sys');
+    } else {
+      att.hp = 0;
+      log(`　${att.name} 自爆了`, 'sys');
+    }
+  }
+
+  // 清理
+  if (move.type !== 'stance') {
+    att.counterBonus = 0;
+    att.passiveBonus = 1;
+    att.buffs.dmgBoost = 0;
+    att.buffs.accUp = 0;
+    att.buffs.meleeAcc = 0;
+  }
+  if (move.orbFirst) att.orbReady = false;
+
+  render();
+  await sleep(120);
+  checkOver();
+}
+
+function applyFace(att) {
+  const r = rnd();
+  if (r < 0.34) { att.faces = 'A'; att.buffs.dodgeA = 15; }
+  else if (r < 0.67) { att.faces = 'B'; att.buffs.counterB = true; }
+  else { att.faces = 'C'; att.buffs.guardC = 0.05; }
+  log(`　${att.name} 变身 ${att.faces} 面相`, 'ep');
+}
+
+function applyFx(target, move, att) {
+  switch (move.fx) {
+    case 'slow':
+      target.status.slow = 2;
+      log(`　${target.name} 迟缓（2 次）`, 'sys');
+      break;
+    case 'stun':
+      target.status.stun = 1;
+      log(`　${target.name} 眩晕`, 'sys');
+      break;
+    case 'noMelee2':
+      if (move.name === '捕捉光环' && target.key === 'zetton') {
+        log('　杰顿免疫了捕捉光环', 'dim');
+        break;
+      }
+      if (rnd() * 100 < 50) {
+        target.status.noMelee = 1;
+        log(`　${target.name} 无法使用格斗技（1 回合）`, 'sys');
+      } else {
+        log('　压制没有生效', 'dim');
+      }
+      break;
+    case 'confuse':
+      if (rnd() * 100 < (move.chance || 35)) {
+        target.status.confuse = true;
+        log(`　${target.name} 混乱`, 'sys');
+      } else {
+        log('　混乱没有生效', 'dim');
+      }
+      break;
+    case 'poison':
+      target.status.poison = 3;
+      log(`　${target.name} 神经中毒（3 回合）`, 'sys');
+      break;
+    case 'clamp':
+      target.status.clamp = 2;
+      log(`　${target.name} 被钳制`, 'sys');
+      break;
+    case 'cut':
+      if (rnd() * 100 < (move.chance || 65)) {
+        target.status.cut = 2;
+        log(`　${target.name} 被切割（受伤 +10%）`, 'sys');
+      }
+      break;
+    case 'noBeam':
+      target.status.noBeam = 1;
+      log(`　${target.name} 无法使用光线（1 回合）`, 'sys');
+      break;
+    case 'down':
+      if (rnd() * 100 < (move.downChance || 75)) {
+        target.status.down = 1;
+        log(`　${target.name} 倒地`, 'sys');
+      }
+      break;
+  }
+}
+
+// 复活不会重置 bombUsed（原子爆炸每场一次）
+function reviveClone(m) {
+  const c = m.buffs.clone;
+  m.maxHp = c.maxHp;
+  m.hp = Math.max(1, c.hp);
+  m.atk = c.atk;
+  m.def = c.def;
+  m.spd = c.spd;
+  if (c.moves) m.moves = c.moves;
+  m.buffs.clone = null;
+  log(`　${m.name} 的假奥特曼倒下，变回本体`, 'sys');
+}
+
+/* ---------------- 回合结束 ---------------- */
+function endOfTurn() {
+  const P = state.player;
+  const E = state.enemy;
+
+  for (const S of [P, E]) {
+    const m = S.team[S.active];
+    if (!m || m.hp <= 0) continue;
+    m.ep = clamp(m.ep + EP_REGEN, 0, EP_MAX);
+    if (m.buffs.absorbCd > 0) m.buffs.absorbCd--;
+    if (m.buffs.shrink > 0) m.buffs.shrink--;
+    if (m.status.noMelee > 0) m.status.noMelee--;
+    if (m.status.clamp > 0) m.status.clamp--;
+    if (m.status.slow > 0) m.status.slow--;
+    if (m.status.poison > 0) {
+      m.status.poison--;
+      m.hp = Math.max(0, m.hp - 2);
+      log(`${m.name} 神经中毒 -2 HP`, 'dim');
+    }
+    if (m.status.lake > 0) {
+      m.status.lake--;
+      m.ep = Math.max(0, m.ep - 2);
+      log(`${m.name} 龙森湖 -2 EP`, 'dim');
+    }
+    if (m.status.flame > 0) {
+      m.status.flame--;
+      m.hp = Math.max(0, m.hp - 2);
+      log(`${m.name} 火焰灼烧 -2 HP`, 'dim');
+    }
+    if (m.status.double > 0) m.status.double--;
+    if (m.status.pull > 0) m.status.pull--;
+    if (m.status.cut > 0) m.status.cut--;
+    if (m.status.noBeam > 0) m.status.noBeam--;
+    if (m.status.mark > 0) m.status.mark--;
+    if (m.passive?.kind === 'speedGrow') {
+      m.buffs.speedUp = Math.min((m.buffs.speedUp || 0) + m.passive.value, m.passive.max);
+    }
+    m.buffs.firstStrike = false;
+  }
+
+  if (state.field) {
+    // 永久领域不递减
+    if (state.field.kind !== 'dmgPerm' && state.field.kind !== 'chargeField' && state.field.kind !== 'extraRevive') {
+      state.field.turns--;
+    }
+    if (state.field.kind === 'poisonAll') {
+      for (const S of [P, E]) {
+        const m = S.team[S.active];
+        if (m.hp > 0) m.hp = Math.max(0, m.hp - 2);
+      }
+    }
+    // 绿蒙斯：敌方中毒、我方恩泽
+    if (state.field.kind === 'poisonField') {
+      const owner = state.field.owner;
+      const foeSide = owner === P ? E : P;
+      const foe = foeSide.team[foeSide.active];
+      if (foe && foe.hp > 0) {
+        foe.hp = Math.max(0, foe.hp - state.field.value);
+        log(`${foe.name} 中毒 -${state.field.value} HP`, 'dim');
+      }
+      const mine = owner.team[owner.active];
+      if (mine && mine.hp > 0) {
+        mine.hp = Math.min(mine.maxHp, mine.hp + state.field.heal);
+        log(`${mine.name} 恩泽 +${state.field.heal} HP`, 'ep');
+      }
+    }
+    if (state.field.turns <= 0 && state.field.kind !== 'dmgPerm' && state.field.kind !== 'chargeField') {
+      // 扎拉布：归还吸取的攻防
+      if (state.field.kind === 'drainStats' && state.field.drained) {
+        for (const d of state.field.drained) {
+          d.mon.atk += d.atk;
+          d.mon.def += d.def;
+        }
+        const owner = state.field.owner;
+        const caster = owner.team.find((m) => m.key === 'zarab');
+        if (caster) {
+          caster.atk -= state.field.drained.reduce((a, d) => a + d.atk, 0);
+          caster.def -= state.field.drained.reduce((a, d) => a + d.def, 0);
+        }
+      }
+      log(`${state.field.name} 消散了`, 'dim');
+      state.field = null;
+    }
+  }
+
+  if (state.warp) {
+    state.warp.turns--;
+    if (state.warp.turns <= 0) { state.warp = null; log('四次元扭曲消散', 'dim'); }
+  }
+
+  state.timer = Math.max(0, state.timer - 1);
+  log(`计时器 ${state.timer} 回合`, 'dim');
+}
+
+/* ---------------- 胜负 ---------------- */
+function teamHpPctPercent(S) {
+  const total = S.team.reduce((a, m) => a + m.hp, 0);
+  const max = S.team.reduce((a, m) => a + m.maxHp, 0);
+  return total / max;
+}
+
+function triggerOnDeath(dead, foe) {
+  const passive = dead.moves.find((m) => m.onDeath);
+  if (!passive || foe.hp <= 0) return;
+  const dmg = Math.max(1, Math.round(passive.onDeath * (dead.atk / foe.def) * 0.16 + 2));
+  foe.hp = Math.max(0, foe.hp - dmg);
+  log(`${dead.name} 倒下时发动 ${passive.name}，${foe.name} -${dmg} HP`, 'hit');
+}
+
+function checkOver() {
+  if (state.over) return;
+  const P = state.player;
+  const E = state.enemy;
+
+  if (P.team[P.active].hp <= 0) {
+    const dead = P.team[P.active];
+    if (dead.passive?.kind === 'revive' && (!dead.reviveUsed || P.extraRevive)) {
+      const ally = P.team.find((m) => m !== dead && m.hp <= 0);
+      if (ally) {
+        ally.hp = Math.round(ally.maxHp * dead.passive.value / 100);
+        ally.ep = Math.max(ally.ep, 30);
+        if (P.extraRevive) {
+          P.extraRevive = false;
+          log(`${dead.name} 发动额外复活，${ally.name} 回来`, 'sys');
+        } else {
+          dead.reviveUsed = true;
+          log(`${dead.name} 倒下前发动怪兽复活，${ally.name} 回来`, 'sys');
+        }
+      } else if (dead.passive.fallbackHeal) {
+        const lowest = P.team
+          .filter((m) => m !== dead && m.hp > 0)
+          .sort((a, b) => a.hp - b.hp)[0];
+        if (lowest) {
+          const heal = Math.round(lowest.maxHp * dead.passive.value / 100);
+          lowest.hp = Math.min(lowest.maxHp, lowest.hp + heal);
+          if (P.extraRevive) P.extraRevive = false;
+          else dead.reviveUsed = true;
+          log(`${dead.name} 发动怪兽复活，治疗 ${lowest.name} ${heal} HP`, 'sys');
+        }
+      }
+    }
+    if (dead.key === 'jamila' && state.field?.kind === 'dmgPerm' && state.field.owner === P) {
+      state.field = null;
+      log('我的故乡是地球 结束', 'dim');
+    }
+    triggerOnDeath(dead, E.team[E.active]);
+    const next = P.team.findIndex((m) => m.hp > 0);
+    if (next === -1) {
+      state.over = true; state.winner = 'enemy';
+      log('你的三只全倒了。', 'sys'); showBanner(); return;
+    }
+    P.active = next;
+    log(`你的 ${P.team[next].name} 上场`, 'act');
+  }
+
+  if (E.team[E.active].hp <= 0) {
+    const dead = E.team[E.active];
+    if (dead.passive?.kind === 'revive' && (!dead.reviveUsed || E.extraRevive)) {
+      const ally = E.team.find((m) => m !== dead && m.hp <= 0);
+      if (ally) {
+        ally.hp = Math.round(ally.maxHp * dead.passive.value / 100);
+        ally.ep = Math.max(ally.ep, 30);
+        if (E.extraRevive) {
+          E.extraRevive = false;
+          log(`对手的 ${dead.name} 发动额外复活，${ally.name} 回来`, 'sys');
+        } else {
+          dead.reviveUsed = true;
+          log(`对手的 ${dead.name} 发动怪兽复活，${ally.name} 回来`, 'sys');
+        }
+      } else if (dead.passive.fallbackHeal) {
+        const lowest = E.team
+          .filter((m) => m !== dead && m.hp > 0)
+          .sort((a, b) => a.hp - b.hp)[0];
+        if (lowest) {
+          const heal = Math.round(lowest.maxHp * dead.passive.value / 100);
+          lowest.hp = Math.min(lowest.maxHp, lowest.hp + heal);
+          if (E.extraRevive) E.extraRevive = false;
+          else dead.reviveUsed = true;
+          log(`对手的 ${dead.name} 发动怪兽复活，治疗 ${lowest.name} ${heal} HP`, 'sys');
+        }
+      }
+    }
+    if (dead.key === 'jamila' && state.field?.kind === 'dmgPerm' && state.field.owner === E) {
+      state.field = null;
+    }
+    triggerOnDeath(dead, P.team[P.active]);
+    const next = E.team.findIndex((m) => m.hp > 0);
+    if (next === -1) {
+      if (state.mode === 'invade' && state.stage < 3) {
+        state.over = true;
+        state.winner = 'player';
+        state.pendingStage = true;
+        log(`第 ${state.stage} 轮胜利`, 'sys');
+        showBanner();
+        return;
+      }
+      state.over = true; state.winner = 'player';
+      if (state.mode === 'invade' && !isUnlocked()) {
+        unlockBonus();
+        log('侵略成功！解锁了初代奥特曼、小型威托、威托，可以在怪兽对战里选用。', 'sys');
+      } else {
+        log(state.mode === 'invade' ? '三轮全胜，侵略成功！' : '对手的三只全倒了。', 'sys');
+      }
+      showBanner(); return;
+    }
+    E.active = next;
+    log(`对手的 ${E.team[next].name} 上场`, 'act');
+  }
+
+  if (state.timer <= 0) {
+    state.over = true;
+    const pp = teamHpPctPercent(P);
+    const ee = teamHpPctPercent(E);
+    if (Math.abs(pp - ee) < 0.001) {
+      state.winner = P.team[P.active].spd >= E.team[E.active].spd ? 'player' : 'enemy';
+      log('计时器熄灭，血量打平。速度快的赢。', 'sys');
+    } else {
+      state.winner = pp > ee ? 'player' : 'enemy';
+      log(`计时器熄灭了。${state.winner === 'player' ? '你' : '对手'}的队伍血量更多。`, 'sys');
+    }
+    showBanner();
+  }
+}
+
+/* ---------------- AI ---------------- */
+/* 估算伤害（不含随机），AI 用来算斩杀和挑招 */
+function estimateDamage(att, def, move) {
+  if (!move.power) return 0;
+  let dmg = move.power * (effAtk(att) / effDef(def)) * 0.16 + 2;
+  dmg *= typeMult(att, def);
+  let guard = 0;
+  return Math.round(dmg * (1 - guard));
+}
+
+function aiChoose(S, foeS, history) {
+  const me = S.team[S.active];
+  const foe = foeS.team[foeS.active];
+  if (me.status.stun > 0) return { kind: 'skip' };
+
+  const atkMoves = me.moves.filter((m) => ['melee', 'beam', 'ult'].includes(m.type)
+    && me.ep >= m.ep && !m.selfDestruct
+    && !(m.type === 'melee' && me.status.noMelee > 0));
+
+  // 1. 残血换人
+  if (hpPct(me) < 0.2 && S.switches > 0 && rnd() < 0.3) {
+    const next = S.team.findIndex((m, i) => i !== S.active && m.hp > 0);
+    if (next !== -1) {
+      const fast = teamSpeed(S) > teamSpeed(foeS);
+      const stance = me.moves.find((m) => m.type === 'stance');
+      return { kind: 'switch', next, follow: fast ? pickAttack(me) : stance || null };
+    }
+  }
+
+  // 2. 斩杀：有能打死的招就用
+  for (const m of atkMoves) {
+    if (estimateDamage(me, foe, m) >= foe.hp) {
+      return { kind: 'move', move: m };
+    }
+  }
+
+  // 3. 读牌：对面连续同类就反制
+  const recent = (history || state.playerHistory).slice(-3);
+  if (recent.length >= 3 && rnd() < 0.45) {
+    const counts = { melee: 0, beam: 0, stance: 0 };
+    for (const t of recent) if (t in counts) counts[t]++;
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (top[1] >= 2) {
+      const wantVs = top[0] === 'beam' ? 'beam' : 'melee';
+      const c = me.moves.find((m) => m.type === 'stance' && m.vs === wantVs && me.ep >= m.ep);
+      if (c) { state.aiRead = true; return { kind: 'move', move: c }; }
+    }
+  }
+
+  // 4. 自爆：残血且能炸到
+  const bomb = me.moves.find((m) => m.selfDestruct && me.ep >= m.ep);
+  if (bomb && hpPct(me) < 0.35 && rnd() < 0.5) return { kind: 'move', move: bomb };
+
+  // 5. 领域：没领域且 EP 充裕
+  const field = me.moves.find((m) => m.type === 'field' && me.ep >= m.ep);
+  if (field && !state.field && rnd() < 0.3) return { kind: 'move', move: field };
+
+  // 6. 挑期望伤害最高的招（类型克制 + 威力）
+  let best = null;
+  let bestDmg = -1;
+  for (const m of atkMoves) {
+    const d = estimateDamage(me, foe, m) + rnd() * 6;
+    if (d > bestDmg) { bestDmg = d; best = m; }
+  }
+  if (best && rnd() < 0.75) return { kind: 'move', move: best };
+
+  return { kind: 'move', move: pickAttack(me) };
+}
+
+function pickAttack(me) {
+  const atk = me.moves.filter((m) => ['melee', 'beam', 'ult'].includes(m.type)
+    && me.ep >= m.ep && !m.selfDestruct
+    && !(m.type === 'melee' && me.status.noMelee > 0));
+  if (atk.length) return atk[Math.floor(rnd() * atk.length)];
+  const st = me.moves.find((m) => m.type === 'stance');
+  if (st) return st;
+  return me.moves[0];
+}
+
+/* ---------------- 渲染 ---------------- */
+function render() {
+  if (!state) return;
+  $('#turnNum').textContent = state.turn;
+  $('#timerNum').textContent = state.timer;
+  $('#timerFill').style.width = (state.timer / MAX_TIMER) * 100 + '%';
+  $('#timerBox').classList.toggle('danger', state.timer <= 3);
+
+  const fieldBox = $('#fieldBox');
+  if (fieldBox) {
+    if (state.field) {
+      fieldBox.hidden = false;
+      fieldBox.textContent = `${state.field.name}（剩 ${state.field.turns}）`;
+    } else fieldBox.hidden = true;
+  }
+
+  paintSide('enemy', state.enemy);
+  paintSide('player', state.player);
+  renderActions();
+}
+
+function paintSide(side, S) {
+  const m = S.team[S.active];
+  $(`#${side}Name`).textContent = m.name;
+  $(`#${side}Sub`).textContent = m.passive ? `${m.sub} · 被动：${m.passive.name}` : m.sub;
+  $(`#${side}Type`).textContent = m.typeName;
+  $(`#${side}Sprite`).innerHTML = sprite(m.key);
+
+  $(`#${side}HpBar`).style.width = (m.hp / m.maxHp) * 100 + '%';
+  $(`#${side}HpTxt`).textContent = `${m.hp} / ${m.maxHp}`;
+  $(`#${side}EpBar`).style.width = m.ep + '%';
+  $(`#${side}EpTxt`).textContent = `${m.ep} EP`;
+
+  const tag = $(`#${side}Dodge`);
+  const tags = [];
+  if (m.counterBonus) tags.push('反击 ×1.3');
+  if (m.orbReady) tags.push('光球待发');
+  if (m.status.stun) tags.push('眩晕');
+  if (m.status.slow) tags.push('迟缓');
+  if (m.status.noMelee) tags.push('禁格斗');
+  if (m.status.poison) tags.push('中毒');
+  if (m.status.clamp) tags.push('钳制');
+  if (m.status.confuse) tags.push('混乱');
+  if (m.buffs.nullify) tags.push('反射板');
+  if (m.buffs.clone) tags.push('假奥特曼');
+  tag.textContent = tags.join(' · ');
+  tag.hidden = tags.length === 0;
+
+  const box = $(`#${side}Bench`);
+  if (box) {
+    box.innerHTML = S.team.map((b, i) => {
+      const cls = i === S.active ? 'bench-dot active' : b.hp <= 0 ? 'bench-dot down' : 'bench-dot';
+      return `<span class="${cls}" title="${b.name} ${b.hp}/${b.maxHp}"></span>`;
+    }).join('');
+  }
+
+  const sw = $(`#${side}SwitchTxt`);
+  if (sw) {
+    const pct = Math.round(teamHpPctPercent(S) * 100);
+    sw.textContent = side === 'player'
+      ? `队伍 ${pct}% · 换人 ${S.switches}/${MAX_SWITCH}`
+      : `队伍 ${pct}%`;
+  }
+}
+
+function renderActions() {
+  if (!state) return;
+  const box = $('#actions');
+  if (state.over) { box.innerHTML = ''; return; }
+
+  const P = state.player;
+  const m = P.team[P.active];
+
+  if (state.pendingSwitch === 'pick') {
+    box.innerHTML = '';
+    P.team.forEach((b, i) => {
+      if (i === P.active || b.hp <= 0) return;
+      const fast = teamSpeed(P) > teamSpeed(state.enemy);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'move m-switch';
+      btn.disabled = state.busy || P.switches <= 0;
+      btn.innerHTML = `
+        <span class="move-name">换上 ${b.name}</span>
+        <span class="move-meta">HP ${b.hp}/${b.maxHp} · 速 ${b.spd}</span>
+        <span class="move-desc">${fast ? '你更快，换完还能出招（后手）' : '你更慢，换完只能防御'}</span>
+      `;
+      btn.addEventListener('click', () => {
+        state.pendingSwitch = { next: i, fast };
+        renderActions();
+      });
+      box.appendChild(btn);
+    });
+    addCancel(box);
+    return;
+  }
+
+  if (state.pendingSwitch && typeof state.pendingSwitch === 'object') {
+    const { next, fast } = state.pendingSwitch;
+    const nm = P.team[next];
+    box.innerHTML = '';
+    const pool = nm.moves.filter((mv) => fast ? !mv.passive : (mv.type === 'stance' && !mv.passive));
+    if (pool.length === 0) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'move m-switch';
+      btn.innerHTML = `<span class="move-name">跳过</span><span class="move-meta">没有可用防御</span><span class="move-desc">直接换人</span>`;
+      btn.addEventListener('click', () => playTurn({ kind: 'switch', next }));
+      box.appendChild(btn);
+    } else {
+      pool.forEach((mv) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'move m-' + mv.type;
+        btn.disabled = !canUse(nm, mv);
+        btn.innerHTML = moveHtml(mv);
+        btn.addEventListener('click', () => playTurn({ kind: 'switch', next, follow: mv }));
+        box.appendChild(btn);
+      });
+    }
+    addCancel(box);
+    return;
+  }
+
+  box.innerHTML = '';
+  m.moves.filter((mv) => !mv.passive).forEach((move) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'move m-' + move.type;
+    btn.disabled = state.busy || !canUse(m, move);
+    btn.innerHTML = moveHtml(move);
+    btn.addEventListener('click', () => playTurn({ kind: 'move', move }));
+    box.appendChild(btn);
+  });
+
+  const benchAlive = P.team.filter((b, i) => i !== P.active && b.hp > 0).length;
+  const sw = document.createElement('button');
+  sw.type = 'button';
+  sw.className = 'move m-switch';
+  sw.disabled = state.busy || P.switches <= 0 || benchAlive === 0;
+  sw.innerHTML = `
+    <span class="move-name">换人</span>
+    <span class="move-meta">剩余 ${P.switches} 次</span>
+    <span class="move-desc">${benchAlive === 0 ? '没有后备了' : '消耗一回合换一只上场'}</span>
+  `;
+  sw.addEventListener('click', () => { state.pendingSwitch = 'pick'; renderActions(); });
+  box.appendChild(sw);
+
+  const skip = document.createElement('button');
+  skip.type = 'button';
+  skip.className = 'move m-skip';
+  skip.disabled = state.busy;
+  skip.innerHTML = `
+    <span class="move-name">跳过</span>
+    <span class="move-meta">EP +5</span>
+    <span class="move-desc">放弃这回合，回 5 EP（回合末再回）</span>
+  `;
+  skip.addEventListener('click', () => playTurn({ kind: 'skip' }));
+  box.appendChild(skip);
+}
+
+function addCancel(box) {
+  const c = document.createElement('button');
+  c.type = 'button';
+  c.className = 'move m-switch';
+  c.innerHTML = `<span class="move-name">取消</span><span class="move-meta">不换</span><span class="move-desc">回到技能选择</span>`;
+  c.addEventListener('click', () => { state.pendingSwitch = null; renderActions(); });
+  box.appendChild(c);
+}
+
+function moveHtml(move) {
+  const stanceKind = move.type === 'stance' ? (move.vs === 'beam' ? '反制A' : '反制B') : '';
+  const fullTip = `${move.name}｜${move.type === 'stance' ? stanceKind + (move.vs === 'beam' ? '（挡光线）' : '（挡格斗）') : (TYPE_NAME[move.type] || move.type)}｜EP ${move.ep || 0}｜${move.desc || ''}`;
+  const typeLabel = move.type === 'stance' ? stanceKind : (TYPE_NAME[move.type] || '技能');
+  let meta;
+  if (move.type === 'stance') {
+    meta = move.vs === 'melee'
+      ? `挡格斗 · 闪避 ${move.dodge || 0}% → 失败减伤 ${Math.round((move.guard || 0) * 100)}%`
+      : `挡光线 · 闪避 ${move.dodge || 0}%`;
+  } else if (move.type === 'field') meta = '领域 · 消耗一回合';
+  else if (move.passive) meta = '被动';
+  else meta = `威力 ${move.power}` + (move.acc ? ` · 命中 ${move.acc}%` : '');
+  return `
+    <span class="move-name" title="${fullTip}">${move.name}</span>
+    <span class="move-meta"><em class="mtype t-${move.type}">${typeLabel}</em>${meta} · EP ${move.ep || 0}</span>
+    <span class="move-desc">${move.desc || ''}</span>
+  `;
+}
+
+function renderLog() {
+  const box = $('#log');
+  if (!box || !state) return;
+  box.innerHTML = state.log.map((l) => `<div class="line ${l.cls}">${l.text}</div>`).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+function flash(side) {
+  const sp = $(`#${side}Sprite`);
+  if (!sp) return;
+  sp.classList.remove('hit');
+  void sp.offsetWidth;
+  sp.classList.add('hit');
+}
+
+function showBanner() {
+  const b = $('#banner');
+  b.hidden = false;
+  const w = state.winner;
+  b.className = 'banner ' + (w === 'player' ? 'win' : 'lose');
+  b.innerHTML = `
+    <div class="banner-title">${w === 'player' ? '胜利' : '败北'}</div>
+    <div class="banner-sub">${w === 'player' ? '还剩 ' + state.player.team.filter((m) => m.hp > 0).length + ' 只站着' : '三只都倒了'}</div>
+    <button id="again" type="button">${state.pendingStage ? '进入下一轮' : (state.mode === 'invade' ? '再打一次' : '重新编队')}</button>
+  `;
+  $('#again').addEventListener('click', () => {
+    if (state.pendingStage) {
+      const stage = state.stage + 1;
+      const keys = state.player.team.map((m) => m.key);
+      state = null;
+      startGame(keys, INVADE_STAGES[stage - 1], 'invade');
+      state.stage = stage;
+      return;
+    }
+    const wasTutorial = state && state.mode === 'tutorial';
+    $('#battle').hidden = true;
+    $('#modeSelect').hidden = false;
+    $('#pick').hidden = true;
+    $('#dex').hidden = true;
+    $('#banner').hidden = true;
+    state = null;
+    if (wasTutorial) log = log;
+  });
+}
+
+
+/* ---------------- 图鉴 ---------------- */
+const DEX_ORDER = [...MON_ORDER, 'vtolSmall', 'vtol', 'ultraman'];
+
+function skillLine(m) {
+  const t = m.type === 'stance'
+    ? (m.vs === 'beam' ? '反制A·挡光线' : '反制B·挡格斗')
+    : (TYPE_NAME[m.type] || m.type);
+  let extra = '';
+  if (m.type === 'stance') extra = m.vs === 'melee' ? `闪避 ${m.dodge || 0}% / 减伤 ${Math.round((m.guard || 0) * 100)}%` : `闪避 ${m.dodge || 0}%`;
+  else if (m.type === 'field') extra = '领域';
+  else if (m.passive) extra = '被动';
+  else extra = `威力 ${m.power || 0}` + (m.acc ? ` / 命中 ${m.acc}%` : '');
+  return `<li><b>${m.name}</b><em>${t}</em><span>${extra} · EP ${m.ep || 0}</span><p>${m.desc || ''}</p></li>`;
+}
+
+function renderDex() {
+  const grid = $('#dexGrid');
+  if (!grid) return;
+  grid.innerHTML = DEX_ORDER.map((key) => {
+    const d = MONSTERS[key];
+    if (!d) return '';
+    const moves = d.pool ? d.pool : monPool(key);
+    return `
+      <div class="pick-card dex-card" data-dex="${key}">
+        <div class="pick-sprite">${sprite(key)}</div>
+        <div class="pick-row">
+          <span class="pick-name">${d.name}</span>
+          <span class="pick-cost">${d.cost || '—'}</span>
+        </div>
+        <div class="pick-sub">${d.sub} · ${d.typeName}${d.overlord ? ' · 豪强' : ''}</div>
+        <div class="pick-stats">HP ${d.hp} · 攻 ${d.atk} · 防 ${d.def} · 速 ${d.spd}</div>
+        <div class="dex-open">查看详情</div>
+        <div class="dex-detail" hidden>
+          <div class="dex-sec"><b>被动</b> ${d.passive ? d.passive.name + '：' + d.passive.desc : '无'}</div>
+          <div class="dex-sec"><b>技能</b><ul class="dex-list">${moves.map(skillLine).join('')}</ul></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.dex-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      const d = card.querySelector('.dex-detail');
+      if (!d) return;
+      d.hidden = !d.hidden;
+    });
+  });
+}
+
+function openDex() {
+  $('#modeSelect').hidden = true;
+  $('#pick').hidden = true;
+  $('#dex').hidden = false;
+  renderDex();
+}
+
+function closeDex() {
+  $('#dex').hidden = true;
+  $('#modeSelect').hidden = false;
+}
+
+
+/* ---------------- 教程 ---------------- */
+const TUT_STEPS = [
+  {
+    title: '主界面',
+    text: '主界面四个入口：怪兽对战是 3v3 打 AI；侵略地球要连打三轮，最后对初代奥特曼；图鉴能查所有角色和技能；教程就是这里。',
+    target: null,
+  },
+  {
+    title: '你的怪兽',
+    text: '左边是你出场的怪兽。名字下面是它的被动，会自动触发，不用你操作。HP 打空就倒下。',
+    target: '#playerSprite',
+  },
+  {
+    title: '技能的类型',
+    text: '技能按颜色区分：橙金是格斗，蓝色是光线，青绿是姿态（反制），橙红是大招。姿态分反制A和反制B，卡片上会写清楚挡的是哪一类。',
+    target: '#actions',
+  },
+  {
+    title: '反制的博弈',
+    text: '反制A专门挡光线，反制B专门挡格斗。猜对了就能闪掉，猜错就露破绽——这就是每回合要猜的东西。',
+    target: '#actions',
+  },
+  {
+    title: '破姿态',
+    text: '攻击类型和对方反制对不上，就是「破姿态」，伤害 ×1.6。双方都出攻击、类型又不同时，速度快的一方先出手，同样能吃到这个优势。',
+    target: '#actions',
+  },
+  {
+    title: 'EP 是资源',
+    text: '放技能要消耗 EP。每回合自然回 8 点，格斗命中还能再回一点。大招要攒够才能放。',
+    target: '#playerEpBar',
+  },
+  {
+    title: '对波 · 触发',
+    text: '双方同一回合都出光线技能时，进入对波。这时不按正常流程结算，而是比较两边这次能打出多少伤害，差值就是差额伤害。',
+    target: '#actions',
+  },
+  {
+    title: '对波 · 追加 EP',
+    text: '看完伤害后，双方各有一次机会追加 EP（金额等于自己那招的 EP）。追加会让对方再比一次：两边伤害都翻倍，谁的伤害低谁吃两次差值之和。赢家追加则输家吃原伤害加差额。都不追加，输家只吃差额。',
+    target: '#clashBox',
+  },
+  {
+    title: '类型克制',
+    text: '每只怪兽有类型。宇宙人克全体怪兽；怪兽之间是环：宇宙怪兽→超能力怪兽→地球怪兽→宇宙怪兽，克制时 1.1 倍。',
+    target: '#enemyType',
+  },
+  {
+    title: '大招与速度',
+    text: '大招不参与破姿态，只吃基础减伤。速度快的先出手，百慕拉比内隆嘎快。预备好就开始吧。',
+    target: '#enemySprite',
+  },
+];
+
+function clearTutHighlight() {
+  document.querySelectorAll('.tut-highlight').forEach((el) => el.classList.remove('tut-highlight'));
+}
+
+function showTutStep(i) {
+  const overlay = $('#tutOverlay');
+  if (!overlay) return;
+  clearTutHighlight();
+  if (i >= TUT_STEPS.length) {
+    overlay.hidden = true;
+    return;
+  }
+  const step = TUT_STEPS[i];
+  $('#tutStep').textContent = (i + 1) + ' / ' + TUT_STEPS.length;
+  $('#tutTitle').textContent = step.title;
+  $('#tutText').textContent = step.text;
+  overlay.hidden = false;
+  const target = step.target ? $(step.target) : null;
+  if (target) target.classList.add('tut-highlight');
+  $('#tutNext').textContent = i === TUT_STEPS.length - 1 ? '开始战斗' : '下一步';
+  $('#tutNext').onclick = () => showTutStep(i + 1);
+}
+
+function startTutorial() {
+  state = null;
+  $('#modeSelect').hidden = true;
+  $('#dex').hidden = true;
+  $('#pick').hidden = true;
+  $('#battle').hidden = false;
+  startGame(['bemular'], ['neronga'], 'tutorial');
+  for (const m of state.enemy.team) {
+    m.maxHp = Math.round(m.maxHp * 0.45);
+    m.hp = m.maxHp;
+  }
+  showTutStep(0);
+}
+
+/* ---------------- 编成界面 ---------------- */
+function renderPick() {
+  const grid = $('#pickGrid');
+  if (!grid) return;
+  const banner = $('#unlockNote');
+  if (banner) {
+    banner.hidden = gameMode === 'invade' || !isUnlocked();
+    banner.textContent = '已解锁：初代奥特曼（9）、小型威托（4）、威托（6）';
+  }
+
+  grid.innerHTML = pickableKeys().map((key) => {
+    const d = MONSTERS[key];
+    if (!d) return '';
+    const on = selected.includes(key);
+    const isOpen = expanded === key;
+    const ids = loadout[key] || defaultLoadout(key);
+    const pool = monPool(key);
+    const chosen = ids.map((id) => pool.find((x) => x.id === id)).filter(Boolean);
+
+    return `
+      <div class="pick-card ${on ? 'on' : ''}" data-key="${key}">
+        <div class="pick-sprite">${sprite(key)}</div>
+        <div class="pick-row">
+          <span class="pick-name">${d.name}</span>
+          <span class="pick-cost">${d.cost}</span>
+        </div>
+        <div class="pick-sub">${d.sub} · ${d.typeName}</div>
+        <div class="pick-stats">HP ${d.hp} · 攻 ${d.atk} · 防 ${d.def} · 速 ${d.spd}</div>
+        <div class="pick-passive">被动：${d.passive?.name || '—'}</div>
+        <div class="pick-moves">
+          ${chosen.map((mv) => `<span class="pm pm-${mv.type}">${mv.name}</span>`).join('')}
+        </div>
+        <div class="pick-foot">
+          <button class="build-btn" data-open="${key}" type="button">配技 ${chosen.length}/4</button>
+          <span class="pick-tick">${on ? '已选' : '点击选入'}</span>
+        </div>
+        ${isOpen ? skillPanel(key, pool, ids) : ''}
+      </div>
+    `;
+  }).join('');
+
+  const cost = selected.reduce((a, k) => a + MONSTERS[k].cost, 0);
+  $('#costNum').textContent = cost;
+  $('#costBar').style.width = Math.min(100, (cost / TEAM_COST) * 100) + '%';
+  $('#costBox').classList.toggle('over', cost > TEAM_COST);
+
+  const mutexHit = MUTEX.some((pair) => pair.every((k) => selected.includes(k)));
+  const ready = selected.length === 3 && cost <= TEAM_COST && !mutexHit
+    && selected.every((k) => (loadout[k] || defaultLoadout(k)).length === 4);
+  $('#startBtn').disabled = !ready;
+  $('#startBtn').textContent = selected.length !== 3
+    ? `还要选 ${3 - selected.length} 只`
+    : mutexHit ? '这两只不能同时上场'
+      : !ready ? '技能没配满' : '开始战斗';
+
+  bindPickEvents(grid);
+}
+
+function skillPanel(key, pool, ids) {
+  const groups = [
+    { slot: 'common', label: '通用' },
+    { slot: 'sig', label: '特色' },
+    { slot: 'sp', label: '特殊' },
+  ];
+  return `
+    <div class="skill-panel">
+      ${groups.map((g) => `
+        <div class="skill-group">
+          <div class="skill-group-label">${g.label}</div>
+          <div class="skill-list">
+            ${pool.filter((m) => m.slot === g.slot).map((m) => {
+              const on = ids.includes(m.id);
+              const tip = `${m.name}｜${TYPE_NAME[m.type]}${m.type === 'stance' ? (m.vs === 'melee' ? `｜闪避${m.dodge || 0}% 减伤${Math.round((m.guard || 0) * 100)}%` : `｜闪避${m.dodge || 0}%`) : (m.power ? `｜威力${m.power}` : '')}｜EP ${m.ep || 0}｜${m.desc || ''}`;
+              return `<button class="skill-chip ${on ? 'on' : ''}" data-skill="${m.id}" data-mon="${key}" type="button" title="${tip}">
+                <span class="chip-name">${m.name}</span>
+                <span class="chip-meta">${m.type === 'stance' ? (m.vs === 'beam' ? '反制A·挡光线' : '反制B·挡格斗') : TYPE_NAME[m.type]} · EP ${m.ep || 0}</span>
+              </button>`;
+            }).join('')}
+          </div>
+        </div>
+      `).join('')}
+      <div class="skill-tip">选 4 个，自由搭配</div>
+    </div>
+  `;
+}
+
+function bindPickEvents(grid) {
+  grid.querySelectorAll('.pick-card').forEach((card) => {
+    card.addEventListener('click', (ev) => {
+      if (ev.target.closest('.build-btn') || ev.target.closest('.skill-chip')) return;
+      const key = card.dataset.key;
+      if (selected.includes(key)) selected = selected.filter((k) => k !== key);
+      else if (selected.length < 3) selected.push(key);
+      renderPick();
+    });
+  });
+
+  grid.querySelectorAll('[data-open]').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const key = btn.dataset.open;
+      expanded = expanded === key ? null : key;
+      renderPick();
+    });
+  });
+
+  grid.querySelectorAll('.skill-chip').forEach((chip) => {
+    chip.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const key = chip.dataset.mon;
+      const id = chip.dataset.skill;
+      const ids = loadout[key] || defaultLoadout(key);
+      if (ids.includes(id)) loadout[key] = ids.filter((x) => x !== id);
+      else if (ids.length < 4) loadout[key] = [...ids, id];
+      renderPick();
+    });
+  });
+}
+
+/* ---------------- 启动 ---------------- */
+window.addEventListener('DOMContentLoaded', () => {
+  renderPick();
+  document.querySelectorAll('[data-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      if (mode === 'dex') { openDex(); return; }
+      if (mode === 'tutorial') { startTutorial(); return; }
+      gameMode = mode;
+      $('#modeSelect').hidden = true;
+      $('#pick').hidden = false;
+      const t = $('#pickTitle');
+      const hint = $('#pickHint');
+      if (t) t.textContent = mode === 'invade' ? '侵略地球' : '怪兽对战';
+      if (hint) {
+        hint.textContent = mode === 'invade'
+          ? '选 3 只去打三轮：两轮威托编队，最后一轮是初代奥特曼。只能用怪兽阵容。'
+          : '3v3 对 AI。编成点数上限 20，每只带 4 个技能。满足羁绊会给全队加成。';
+      }
+    });
+  });
+  const db = $('#dexBack');
+  if (db) db.addEventListener('click', closeDex);
+  $('#startBtn').addEventListener('click', () => {
+    if (selected.length === 3) startGame(selected.slice(), null, gameMode);
+  });
+});
+
+if (typeof window !== 'undefined') {
+  window.__TEST__ = {
+    startGame, startTutorial, showTutStep, playTurn, aiChoose, getState: () => state, MONSTERS, TEAM_COST, monPool, MUTEX,
+    BONDS, PASSIVES_REF: null,
+    setLoadout: (key, ids) => { loadout[key] = ids; },
+    getLoadout: () => loadout,
+    defaultLoadout,
+  };
+}
