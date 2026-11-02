@@ -1275,6 +1275,28 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
     return;
   }
 
+  // 反制挡下必杀：同样触发反制的后续效果
+  if (res.note === '反制挡下' && foeMove) {
+    if (foeMove.epBack) {
+      def.ep = clamp(def.ep + foeMove.epBack, 0, EP_MAX);
+      log(`　${def.name} 反制成功，恢复 ${foeMove.epBack} EP`, 'ep');
+    }
+    if (foeMove.counterUlt) {
+      const cu = def.moves.find((mm) => mm.name === foeMove.counterUlt)
+        || MONSTERS[def.key]?.pool?.find((mm) => mm.name === foeMove.counterUlt)
+        || { name: foeMove.counterUlt, type: 'ult', power: 230, acc: 82 };
+      if (cu) {
+        const r2 = rollHit(def, att, cu, { type: 'melee' });
+        if (r2.kind === 'hit') {
+          att.hp = Math.max(0, att.hp - r2.dmg);
+          log(`　${def.name} 反手 ${cu.name}！${att.name} -${r2.dmg} HP`, 'hit');
+          flash(S === state.player ? 'player' : 'enemy');
+          floatText(S === state.player ? 'player' : 'enemy', '-' + r2.dmg, 'dmg');
+        }
+      }
+    }
+  }
+
   const hpBefore = target.hp;
   target.hp = Math.max(0, target.hp - res.dmg);
   log(`　${target.name} -${res.dmg} HP　${res.note}`, 'hit');
