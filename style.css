@@ -827,3 +827,106 @@ html, body {
 }
 
 .unlock-note[hidden] { display: none; }
+
+
+/* ============ 横屏（手机横握） ============ */
+@media (orientation: landscape) and (max-height: 560px) {
+  .wrap { padding: 8px 12px 16px; max-width: none; }
+
+  .head { display: none; }
+
+  .timer-box { padding: 5px 10px; margin-bottom: 6px; }
+  .timer-num { font-size: 14px; }
+  .timer-label { font-size: 9px; }
+  .timer-track { height: 5px; }
+
+  .topbar { font-size: 10px; margin: 4px 0; }
+
+  /* 敌我左右并排 */
+  .field {
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .mid { display: flex; align-items: center; }
+  .vs { font-size: 14px; }
+
+  .mon-card { padding: 6px 10px; }
+  .mon-head { gap: 6px; }
+  .mon-name { font-size: 14px; }
+  .mon-sub { font-size: 9px; }
+  .mon-type { font-size: 8px; padding: 0 5px; }
+
+  .sprite { height: 62px; }
+  .sprite svg { height: 100%; width: auto; }
+
+  .bars { gap: 3px; margin-top: 4px; }
+  .row { font-size: 9px; gap: 5px; }
+  .bar { height: 7px; }
+  .num { font-size: 9px; }
+
+  .dodge { font-size: 9px; padding: 1px 6px; }
+  .bench { margin-top: 4px; }
+  .switch-txt { font-size: 9px; }
+
+  /* 技能：四列铺开 */
+  .actions {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .move { padding: 7px 8px; }
+  .move-name { font-size: 12px; }
+  .move-meta { font-size: 8px; margin-top: 1px; }
+  .move-desc { display: none; }
+
+  .hint { display: none; }
+
+  .log {
+    height: 62px;
+    font-size: 10px;
+    padding: 5px 8px;
+    margin-top: 6px;
+  }
+  .log .line { padding: 0; }
+
+  .clash-box { padding: 8px 12px; gap: 8px; margin: 6px 0; }
+  .clash-title { font-size: 11px; }
+  .clash-diff { font-size: 12px; }
+  .clash-btns button { padding: 6px 12px; font-size: 12px; }
+
+  .banner { padding: 14px; }
+  .banner-title { font-size: 22px; }
+
+  .tut-card { width: min(560px, 88vw); padding: 16px 18px; }
+  .tut-title { font-size: 15px; margin-bottom: 6px; }
+  .tut-text { font-size: 12px; line-height: 1.6; margin-bottom: 10px; }
+  .tut-next { padding: 6px 16px; font-size: 12px; }
+
+  .foot { display: none; }
+}
+
+/* 横屏 + 小高度（比如 375 高）再压一档 */
+@media (orientation: landscape) and (max-height: 400px) {
+  .sprite { height: 48px; }
+  .log { height: 48px; }
+  .move { padding: 5px 6px; }
+  .move-name { font-size: 11px; }
+  .move-meta { font-size: 7px; }
+}
+
+/* ============ 竖屏提示 ============ */
+@media (orientation: portrait) and (max-width: 720px) {
+  .battle::before {
+    content: "横过来玩更清楚 →";
+    display: block;
+    text-align: center;
+    font-size: 11px;
+    color: #6fc3ff;
+    padding: 5px 0;
+    margin-bottom: 4px;
+    border-bottom: 1px dashed #24435e;
+  }
+}
