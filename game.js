@@ -839,6 +839,7 @@ async function playTurn(action) {
   recordHistory(state.enemyHistory, eAction);
 
   log(`── 第 ${state.turn} 回合 ──`, 'turn');
+  showTurnBanner(state.turn);
 
 
   const pFastSwitch = action.kind === 'switch' && teamSpeed(P) > teamSpeed(E);
@@ -1214,6 +1215,7 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   if (res.kind === 'nullify') { def.buffs.nullify = false; log(`　${res.note}`, 'miss'); return; }
   if (res.kind === 'dodge') {
     log(`　${def.name} 闪过这一击`, 'miss');
+    floatText(S === state.player ? 'player' : 'enemy', 'MISS', 'miss');
     if (foeMove && foeMove.type === 'stance') {
       def.counterBonus = 1.3;
       log(`　${def.name} 抓住机会，下一手 ×1.3`, 'ep');
@@ -1273,7 +1275,9 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   const hpBefore = target.hp;
   target.hp = Math.max(0, target.hp - res.dmg);
   log(`　${target.name} -${res.dmg} HP　${res.note}`, 'hit');
-  flash(T === state.player ? 'player' : 'enemy');
+  const tSide = T === state.player ? 'player' : 'enemy';
+  flash(tSide);
+  floatText(tSide, '-' + res.dmg, res.note && res.note.includes('破姿态') ? 'crit' : 'dmg');
 
   // 四次元光线：延长扭曲
   if (move.extWarp && state.warp) {
@@ -1882,6 +1886,13 @@ function render() {
 
 function paintSide(side, S) {
   const m = S.team[S.active];
+  const card = $(`#${side}Card`);
+  if (card) {
+    card.dataset.type = m.type;
+    card.classList.toggle('low-hp', m.hp / m.maxHp < 0.3);
+  }
+  const typeEl = $(`#${side}Type`);
+  if (typeEl) typeEl.dataset.type = m.type;
   $(`#${side}Name`).textContent = m.name;
   $(`#${side}Sub`).textContent = m.passive ? `${m.sub} · 被动：${m.passive.name}` : m.sub;
   $(`#${side}Type`).textContent = m.typeName;
@@ -1893,19 +1904,27 @@ function paintSide(side, S) {
   $(`#${side}EpTxt`).textContent = `${m.ep} EP`;
 
   const tag = $(`#${side}Dodge`);
-  const tags = [];
-  if (m.counterBonus) tags.push('反击 ×1.3');
-  if (m.orbReady) tags.push('光球待发');
-  if (m.status.stun) tags.push('眩晕');
-  if (m.status.slow) tags.push('迟缓');
-  if (m.status.noMelee) tags.push('禁格斗');
-  if (m.status.poison) tags.push('中毒');
-  if (m.status.clamp) tags.push('钳制');
-  if (m.status.confuse) tags.push('混乱');
-  if (m.buffs.nullify) tags.push('反射板');
-  if (m.buffs.clone) tags.push('假奥特曼');
-  tag.textContent = tags.join(' · ');
-  tag.hidden = tags.length === 0;
+  const icons = [];
+  if (m.counterBonus) icons.push(['⚡', '反击加成 ×1.3']);
+  if (m.orbReady) icons.push(['🔵', '光球待发（下一手先制）']);
+  if (m.status.stun) icons.push(['💫', '眩晕']);
+  if (m.status.slow) icons.push(['🐌', '迟缓']);
+  if (m.status.noMelee) icons.push(['🚫', '禁格斗']);
+  if (m.status.noBeam) icons.push(['🚫', '禁光线']);
+  if (m.status.poison) icons.push(['☠', '神经中毒']);
+  if (m.status.clamp) icons.push(['🔗', '钳制']);
+  if (m.status.confuse) icons.push(['😵', '混乱']);
+  if (m.status.cut) icons.push(['✂', '切割（受伤 +10%）']);
+  if (m.status.pull) icons.push(['🧲', '牵引（必定后手）']);
+  if (m.status.double) icons.push(['👥', '二重身']);
+  if (m.status.mark) icons.push(['🎯', '奥特攻击光线标记']);
+  if (m.buffs.nullify) icons.push(['🛡', '反射板待发']);
+  if (m.buffs.clone) icons.push(['🎭', '假奥特曼']);
+  if (tag) {
+    tag.className = 'state-icons';
+    tag.innerHTML = icons.map(([ic, tip]) => `<span class="state-icon" title="${tip}">${ic}</span>`).join('');
+    tag.hidden = icons.length === 0;
+  }
 
   const box = $(`#${side}Bench`);
   if (box) {
@@ -1984,15 +2003,35 @@ function renderActions() {
   }
 
   box.innerHTML = '';
-  m.moves.filter((mv) => !mv.passive).forEach((move) => {
+  const all = m.moves.filter((mv) => !mv.passive);
+  const atkMoves = all.filter((mv) => ['melee', 'beam', 'ult'].includes(mv.type));
+  const defMoves = all.filter((mv) => mv.type === 'stance');
+  const otherMoves = all.filter((mv) => ['field'].includes(mv.type));
+
+  function makeBtn(move) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'move m-' + move.type;
     btn.disabled = state.busy || !canUse(m, move);
     btn.innerHTML = moveHtml(move);
     btn.addEventListener('click', () => playTurn({ kind: 'move', move }));
-    box.appendChild(btn);
-  });
+    return btn;
+  }
+
+  if (atkMoves.length) {
+    const g = document.createElement('div');
+    g.className = 'move-group offense';
+    g.innerHTML = '<div class="move-group-label">进攻</div>';
+    atkMoves.forEach((mv) => g.appendChild(makeBtn(mv)));
+    box.appendChild(g);
+  }
+  if (defMoves.length || otherMoves.length) {
+    const g = document.createElement('div');
+    g.className = 'move-group defense';
+    g.innerHTML = '<div class="move-group-label">防御 / 其他</div>';
+    [...defMoves, ...otherMoves].forEach((mv) => g.appendChild(makeBtn(mv)));
+    box.appendChild(g);
+  }
 
   const benchAlive = P.team.filter((b, i) => i !== P.active && b.hp > 0).length;
   const sw = document.createElement('button');
@@ -2048,6 +2087,15 @@ function moveHtml(move) {
   `;
 }
 
+function showTurnBanner(turn) {
+  if (!document.body) return;
+  const el = document.createElement('div');
+  el.className = 'turn-banner';
+  el.textContent = `第 ${turn} 回合`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+
 function renderLog() {
   const box = $('#log');
   if (!box || !state) return;
@@ -2061,6 +2109,21 @@ function flash(side) {
   sp.classList.remove('hit');
   void sp.offsetWidth;
   sp.classList.add('hit');
+}
+
+/* 伤害 / 闪避 飘字 */
+function floatText(side, text, cls) {
+  const card = $(`#${side}Card`);
+  if (!card || !card.appendChild) return;
+  const el = document.createElement('div');
+  el.className = 'float-text ' + (cls || 'dmg');
+  el.textContent = text;
+  card.appendChild(el);
+  card.classList.add('hit-shake');
+  setTimeout(() => {
+    el.remove();
+    card.classList.remove('hit-shake');
+  }, 900);
 }
 
 function showBanner() {
@@ -2368,6 +2431,11 @@ function bindPickEvents(grid) {
 /* ---------------- 启动 ---------------- */
 window.addEventListener('DOMContentLoaded', () => {
   renderPick();
+  const vl = $('#verLine');
+  if (vl) {
+    const total = isUnlocked() ? 19 : 16;
+    vl.textContent = 'v1.0 · 已解锁 ' + total + ' 只';
+  }
   document.querySelectorAll('[data-mode]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.mode;
