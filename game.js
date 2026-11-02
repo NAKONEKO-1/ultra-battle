@@ -1162,7 +1162,9 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
       log(`　${def.name} 恢复 ${foeMove.epBack} EP`, 'ep');
     }
     if (foeMove?.counterUlt) {
-      const cu = def.moves.find((mm) => mm.name === foeMove.counterUlt);
+      const cu = def.moves.find((mm) => mm.name === foeMove.counterUlt)
+        || MONSTERS[def.key]?.pool?.find((mm) => mm.name === foeMove.counterUlt)
+        || { name: foeMove.counterUlt, type: 'ult', power: 230, acc: 82 };
       if (cu) {
         const r2 = rollHit(def, att, cu, { type: 'melee' });
         if (r2.kind === 'hit') {
@@ -1213,10 +1215,23 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
     log('　展开四次元扭曲（2 回合，全队受到 <60 伤害无效化）', 'sys');
   }
 
+  // 羽箭风暴：连锁追击毒羽箭
+  if (move.chase && target === def && target.hp > 0) {
+    const chasePower = 75;
+    for (const chance of (move.chaseTable || [75, 45, 15])) {
+      if (rnd() * 100 >= chance) break;
+      const d2 = Math.max(1, Math.round(chasePower * (effAtk(att) / effDef(target)) * 0.16 + 2));
+      target.hp = Math.max(0, target.hp - d2);
+      log(`　追击 ${move.chase}！${target.name} -${d2} HP`, 'hit');
+    }
+  }
+
   // 技能效果
   if (move.triggerMark && target.status.mark > 0) {
     target.status.mark = 0;
-    const atkMove = att.moves.find((mm) => mm.name === '奥特攻击光线');
+    const atkMove = att.moves.find((mm) => mm.name === '奥特攻击光线')
+      || MONSTERS[att.key]?.pool?.find((mm) => mm.name === '奥特攻击光线')
+      || { power: 300 };
     if (atkMove) {
       const boom = Math.max(1, Math.round(atkMove.power * (effAtk(att) / effDef(target)) * 0.16 + 2));
       target.hp = Math.max(0, target.hp - boom);
@@ -1302,7 +1317,9 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
     target.hp = Math.min(target.maxHp, target.hp + heal);
   }
   if (target.passive?.kind === 'absorbJudge' && move.type === 'beam' && (target.buffs.absorbCd || 0) <= 0) {
-    const backUlt = target.moves.find((m) => m.type === 'ult');
+    const backUlt = target.moves.find((m) => m.type === 'ult')
+      || MONSTERS[target.key]?.ult
+      || { power: 300, name: '杰顿终极光线' };
     if (backUlt) {
       let back = backUlt.power;
       if (res.judge >= target.passive.threshold) {
