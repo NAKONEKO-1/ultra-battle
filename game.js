@@ -244,7 +244,7 @@ const MONSTERS = {
 
   /* ---------------- 侵略地球模式专用敌人 ---------------- */
   vtolSmall: {
-    id: 'vtolSmall', name: '小型威托', sub: '科特队战机', type: 'machine', typeName: '机械',
+    id: 'vtolSmall', name: '小型威托', sub: '科特队战机', type: 'squad', typeName: '战队',
     hp: 55, atk: 48, def: 25, spd: 95, cost: 4,
     melee: { name: '机炮扫射', power: 30, ep: 3, desc: '机炮连射' },
     beamM: { name: '小型导弹', power: 45, ep: 6, desc: '制导导弹' },
@@ -256,7 +256,7 @@ const MONSTERS = {
   },
 
   vtol: {
-    id: 'vtol', name: '威托', sub: '科特队主力机', type: 'machine', typeName: '机械',
+    id: 'vtol', name: '威托', sub: '科特队主力机', type: 'squad', typeName: '战队',
     hp: 110, atk: 65, def: 40, spd: 82, cost: 6,
     melee: { name: '机炮扫射', power: 38, ep: 4, desc: '机炮连射' },
     beamM: { name: '大型导弹', power: 62, ep: 8, desc: '大型制导导弹' },
@@ -268,7 +268,7 @@ const MONSTERS = {
   },
 
   ultraman: {
-    id: 'ultraman', name: '初代奥特曼', sub: '光之巨人', type: 'ultra', typeName: '光',
+    id: 'ultraman', name: '初代奥特曼', sub: '光之巨人', type: 'ultra', typeName: '奥特曼',
     hp: 220, atk: 98, def: 78, spd: 80, cost: 9,
     versusStats: { hp: 145, atk: 80, def: 62, spd: 78 },
     melee: { name: '奥特格斗', power: 88, ep: 6, desc: '光之巨人的体术' },
@@ -366,6 +366,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rnd = () => Math.random();
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const $ = (sel) => document.querySelector(sel);
+
+const SITES = {
+  city: {
+    name: '城市', icon: '🏙',
+    desc: '战队命中 -15%，全体怪兽与宇宙人命中 +10%',
+  },
+  field: {
+    name: '山野', icon: '🏔',
+    desc: '地球怪兽伤害 +10%，战队命中 +25%',
+  },
+  ocean: {
+    name: '海洋', icon: '🌊',
+    desc: '超能力怪兽防御 +10%，百慕拉伤害 +15%，贾米拉生命削减到 25%',
+  },
+  space: {
+    name: '宇宙', icon: '🌌',
+    desc: '宇宙怪兽 / 宇宙人 / 奥特曼生命 +15%',
+  },
+};
+const SITE_KEYS = ['city', 'field', 'ocean', 'space'];
 
 const INVADE_STAGES = [
   ['vtolSmall', 'vtolSmall'],
@@ -531,7 +551,11 @@ function startGame(playerKeys, enemyTeamKeys, mode) {
   const bondsP = applyBonds(teamP);
   const bondsE = applyBonds(teamE);
 
+  const siteKey = SITE_KEYS[Math.floor(rnd() * SITE_KEYS.length)];
+  const site = SITES[siteKey];
   state = {
+    site: siteKey,
+    siteName: site.name,
     player: { team: teamP, active: 0, switches: MAX_SWITCH, bonds: bondsP },
     enemy: { team: teamE, active: 0, switches: MAX_SWITCH, bonds: bondsE },
     mode: gameMode, stage: 1, turn: 1, timer: MAX_TIMER, busy: false, over: false, winner: null,
@@ -552,7 +576,9 @@ function startGame(playerKeys, enemyTeamKeys, mode) {
   $('#banner').hidden = true;
   $('#log').innerHTML = '';
 
+  applySiteEffects(siteKey);
   log('战斗开始', 'sys');
+  log(`${site.icon} 场地：${site.name}　${site.desc}`, 'sys');
   log(`你：${teamP.map((m) => m.name).join(' / ')}`, 'dim');
   log(`敌：${teamE.map((m) => m.name).join(' / ')}`, 'dim');
   if (bondsP.length) log(`我方羁绊：${bondsP.map((b) => `${b.name}(${b.desc})`).join('、')}`, 'sys');
@@ -580,6 +606,46 @@ function startClone(m) {
   m.def = Math.round(m.def * 0.6);
   // 假奥特曼只有基础技能
   m.moves = BASIC_MOVES.map((x) => ({ ...x }));
+}
+
+function applySiteEffects(siteKey) {
+  for (const S of [state.player, state.enemy]) {
+    for (const m of S.team) {
+      // 宇宙：宇宙怪兽 / 宇宙人 / 奥特曼 生命 +15%
+      if (siteKey === 'space' && ['cosmosBeast', 'cosmosMan', 'ultra'].includes(m.type)) {
+        m.maxHp = Math.round(m.maxHp * 1.15);
+        m.hp = m.maxHp;
+      }
+      // 海洋：超能力怪兽 防御 +10%
+      if (siteKey === 'ocean' && m.type === 'esper') {
+        m.def = Math.round(m.def * 1.1);
+      }
+      // 海洋：贾米拉生命削减到 25%
+      if (siteKey === 'ocean' && m.key === 'jamila') {
+        m.maxHp = Math.max(1, Math.round(m.maxHp * 0.25));
+        m.hp = m.maxHp;
+      }
+    }
+  }
+}
+
+/* 场地对「命中」的修正（百分比，正为提升） */
+function siteAccMod(m) {
+  const site = state?.site;
+  if (site === 'city') {
+    if (m.type === 'squad') return -15;
+    if (m.type === 'cosmosMan' || m.type === 'cosmosBeast' || m.type === 'esper' || m.type === 'earthMonster') return 10;
+  }
+  if (site === 'field' && m.type === 'squad') return 25;
+  return 0;
+}
+
+/* 场地对「伤害」的修正（百分比） */
+function siteDmgMod(m) {
+  const site = state?.site;
+  if (site === 'field' && m.type === 'earthMonster') return 10;
+  if (site === 'ocean' && m.key === 'bemular') return 15;
+  return 0;
 }
 
 function pickEnemyTeam() {
@@ -622,7 +688,7 @@ function rollHit(att, def, move, defMove) {
 
   if (move.type === 'ult' && !move.selfDestruct) {
     const acc = (move.acc || 100) + (effSpd(att) - effSpd(def)) * 0.4 + ab.accUp
-      + (move.type === 'melee' ? ab.meleeAcc : 0);
+      + (move.type === 'melee' ? ab.meleeAcc : 0) + siteAccMod(att);
     if (!alwaysHit && rnd() * 100 > acc) return { dmg: 0, kind: 'miss', note: '必杀落空' };
   }
 
@@ -719,6 +785,8 @@ function rollHit(att, def, move, defMove) {
   if (dualBreak) dmg *= 0.85;
   if (inRedZone()) dmg *= 1.2;
   dmg *= 0.9 + rnd() * 0.2;
+  const sdm = siteDmgMod(att);
+  if (sdm) dmg *= 1 + sdm / 100;
 
   // 二重身：受到超过当前血量一半的伤害时，65% 消耗替身免伤
   if (def.status.double > 0 && dmg > def.hp / 2 && rnd() * 100 < 65) {
@@ -1791,6 +1859,9 @@ function render() {
   $('#timerNum').textContent = state.timer;
   $('#timerFill').style.width = (state.timer / MAX_TIMER) * 100 + '%';
   $('#timerBox').classList.toggle('danger', state.timer <= 3);
+
+  const siteBox = $('#siteBox');
+  if (siteBox) siteBox.textContent = state.siteName ? `${SITES[state.site]?.icon || ''} ${state.siteName}` : '';
 
   const fieldBox = $('#fieldBox');
   if (fieldBox) {

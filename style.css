@@ -930,3 +930,14 @@ html, body {
     border-bottom: 1px dashed #24435e;
   }
 }
+
+
+/* ---------- 场地标记 ---------- */
+.site-box {
+  font-size: 11px;
+  color: #9fd8ff;
+  padding: 2px 9px;
+  border: 1px solid #24435e;
+  border-radius: 999px;
+  background: #0e1b2a;
+}
