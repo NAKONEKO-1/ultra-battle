@@ -1119,3 +1119,300 @@ html, body {
   .float-text { font-size: 22px; }
   .float-text.crit { font-size: 28px; }
 }
+
+
+/* ========== 新版战斗布局 ========== */
+.battle {
+  display: grid;
+  grid-template-columns: 1fr 1.12fr;
+  grid-template-areas:
+    "info enemy"
+    "center center"
+    "player skills";
+  gap: 12px;
+  align-items: stretch;
+}
+
+.info-panel { grid-area: info; display: flex; flex-direction: column; min-height: 240px; }
+#enemyCard { grid-area: enemy; }
+.center-panel { grid-area: center; }
+#playerCard { grid-area: player; }
+.skill-panel { grid-area: skills; }
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(165deg, var(--panel2), var(--panel));
+  padding: 12px 14px;
+}
+
+.panel-title {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: #7d94b0;
+  margin-bottom: 8px;
+}
+
+/* 左上门：对战信息 */
+.info-panel .log {
+  flex: 1;
+  height: auto;
+  min-height: 120px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+}
+
+.option-box {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #24334a;
+}
+
+.option-box .move {
+  flex: 1;
+  padding: 8px 10px;
+}
+
+/* 角色卡 */
+.mon-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: linear-gradient(165deg, var(--panel2), var(--panel));
+  position: relative;
+}
+
+.mon-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.mon-portrait {
+  width: 92px;
+  height: 92px;
+  border-radius: 14px;
+  background: #0a1622;
+  border: 1px solid #1e2e44;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.mon-portrait svg { width: 100%; height: 100%; }
+
+.mon-type {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #2a3f5a;
+  color: #9fb4cc;
+  white-space: nowrap;
+}
+
+.mon-body { flex: 1; min-width: 0; }
+
+.mon-name { font-size: 19px; font-weight: 700; }
+
+.mon-alias { font-size: 11px; color: #7d91a8; margin-top: 1px; }
+
+.mon-passive {
+  font-size: 11px;
+  color: #b9a2ff;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.mon-bars { margin-top: 8px; display: grid; gap: 5px; }
+
+.mon-bars .row { display: flex; align-items: center; gap: 7px; }
+
+.mon-bars .bar { flex: 1; height: 12px; }
+
+.mon-bars .num { font-size: 11px; min-width: 58px; text-align: right; }
+
+/* 中间列 */
+.center-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.center-panel .vs {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #6fc3ff;
+  text-shadow: 0 0 16px rgba(111, 195, 255, .4);
+}
+
+.timer-circle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.timer-ring {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, #0d2333, #08131e);
+  border: 2px solid #2a6a8a;
+  box-shadow: 0 0 18px rgba(42, 106, 138, .35), inset 0 0 16px rgba(42, 106, 138, .2);
+  transition: border-color .3s, box-shadow .3s;
+}
+
+.timer-ring b { font-size: 26px; color: #9fe0ff; }
+
+.timer-circle.danger .timer-ring {
+  border-color: #b53a3a;
+  box-shadow: 0 0 22px rgba(181, 58, 58, .55), inset 0 0 18px rgba(181, 58, 58, .3);
+  animation: timerBeat .8s ease-in-out infinite;
+}
+
+.timer-circle.danger .timer-ring b { color: #ff7a7a; }
+
+@keyframes timerBeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.timer-cap { font-size: 9px; color: #6b7c92; letter-spacing: 2px; }
+
+.site-line {
+  font-size: 12px;
+  color: #9fd8ff;
+  padding: 3px 12px;
+  border: 1px solid #24435e;
+  border-radius: 999px;
+  background: #0e1b2a;
+}
+
+.bench-pair { display: flex; gap: 18px; align-items: center; }
+
+.bench-side { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+
+.bench-cap { font-size: 9px; color: #5f7288; }
+
+.center-panel .bench-dots { display: flex; gap: 5px; }
+
+.center-panel .bench-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2a3f5a;
+}
+
+.center-panel .bench-dot.alive { background: #4a9ed6; box-shadow: 0 0 8px rgba(74,158,214,.5); }
+.center-panel .bench-dot.active { background: #6fe0a0; box-shadow: 0 0 10px rgba(111,224,160,.6); }
+.center-panel .bench-dot.down { background: #4a2a2a; }
+
+.turn-line { font-size: 11px; color: #6b7c92; }
+.turn-line b { color: #cfe9ff; font-size: 14px; }
+
+/* 技能面板 */
+.skill-panel {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.skill-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.skill-card {
+  text-align: left;
+  font-family: inherit;
+  border-radius: 12px;
+  border: 1px solid #24334a;
+  background: linear-gradient(160deg, #12202f, #0c1622);
+  padding: 9px 11px;
+  cursor: pointer;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 74px;
+  transition: border-color .16s, transform .12s;
+}
+
+.skill-card:hover:not(:disabled) { transform: translateY(-2px); }
+.skill-card:disabled { opacity: .42; cursor: not-allowed; }
+
+.skill-card .sk-name { font-size: 13px; font-weight: 600; }
+.skill-card .sk-desc {
+  font-size: 10px;
+  color: #7d91a8;
+  line-height: 1.45;
+  flex: 1;
+  overflow: hidden;
+}
+.skill-card .sk-foot {
+  display: flex;
+  gap: 8px;
+  font-size: 9px;
+  color: #6b7c92;
+  align-items: center;
+}
+.skill-card .sk-foot .sk-type {
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid #2a3f5a;
+}
+
+.skill-card.m-melee .sk-name { color: #e0a86b; }
+.skill-card.m-beam .sk-name { color: #6fc3ff; }
+.skill-card.m-stance .sk-name { color: #6fd3b0; }
+.skill-card.m-ult .sk-name { color: #ff8a5c; }
+.skill-card.m-field .sk-name { color: #b9a2ff; }
+
+@media (max-width: 860px) {
+  .battle {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "info"
+      "enemy"
+      "center"
+      "player"
+      "skills";
+  }
+  .mon-portrait { width: 72px; height: 72px; }
+  .timer-ring { width: 64px; height: 64px; }
+  .timer-ring b { font-size: 20px; }
+}
+
+/* 横屏：保持左右布局但压缩 */
+@media (orientation: landscape) and (max-height: 700px) {
+  .battle {
+    grid-template-columns: 1fr 1.15fr;
+    grid-template-areas:
+      "info enemy"
+      "center center"
+      "player skills";
+    gap: 8px;
+  }
+  .info-panel { min-height: 0; }
+  .info-panel .log { min-height: 60px; max-height: 96px; }
+  .mon-portrait { width: 62px; height: 62px; }
+  .mon-name { font-size: 15px; }
+  .mon-passive { font-size: 9px; }
+  .timer-ring { width: 54px; height: 54px; }
+  .timer-ring b { font-size: 18px; }
+  .skill-card { min-height: 58px; padding: 7px 9px; }
+  .skill-card .sk-desc { display: none; }
+}

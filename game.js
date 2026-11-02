@@ -1866,7 +1866,8 @@ function render() {
   $('#turnNum').textContent = state.turn;
   $('#timerNum').textContent = state.timer;
   $('#timerFill').style.width = (state.timer / MAX_TIMER) * 100 + '%';
-  $('#timerBox').classList.toggle('danger', state.timer <= 3);
+  const tc = $('#timerCircle');
+  if (tc) tc.classList.toggle('danger', state.timer <= 3);
 
   const siteBox = $('#siteBox');
   if (siteBox) siteBox.textContent = state.siteName ? `${SITES[state.site]?.icon || ''} ${state.siteName}` : '';
@@ -1894,7 +1895,9 @@ function paintSide(side, S) {
   const typeEl = $(`#${side}Type`);
   if (typeEl) typeEl.dataset.type = m.type;
   $(`#${side}Name`).textContent = m.name;
-  $(`#${side}Sub`).textContent = m.passive ? `${m.sub} · 被动：${m.passive.name}` : m.sub;
+  $(`#${side}Sub`).textContent = m.sub;
+  const pvEl = $(`#${side}Passive`);
+  if (pvEl) pvEl.textContent = m.passive ? `被动 · ${m.passive.name}：${m.passive.desc || ''}` : '';
   $(`#${side}Type`).textContent = m.typeName;
   $(`#${side}Sprite`).innerHTML = sprite(m.key);
 
@@ -1946,7 +1949,9 @@ function paintSide(side, S) {
 function renderActions() {
   if (!state) return;
   const box = $('#actions');
-  if (state.over) { box.innerHTML = ''; return; }
+  const optBox = $('#optionBox');
+  if (!box) return;
+  if (state.over) { box.innerHTML = ''; if (optBox) optBox.innerHTML = ''; return; }
 
   const P = state.player;
   const m = P.team[P.active];
@@ -2008,32 +2013,38 @@ function renderActions() {
   const defMoves = all.filter((mv) => mv.type === 'stance');
   const otherMoves = all.filter((mv) => ['field'].includes(mv.type));
 
-  function makeBtn(move) {
+  function makeCard(move) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'move m-' + move.type;
+    btn.className = 'skill-card m-' + move.type;
     btn.disabled = state.busy || !canUse(m, move);
-    btn.innerHTML = moveHtml(move);
+    const stanceKind = move.type === 'stance' ? (move.vs === 'beam' ? '反制A' : '反制B') : '';
+    const typeLabel = move.type === 'stance' ? stanceKind : (TYPE_NAME[move.type] || '技能');
+    let powerTxt = '';
+    if (move.type === 'stance') powerTxt = `闪避 ${move.dodge || 0}%`;
+    else if (move.type === 'field') powerTxt = '领域';
+    else if (!move.passive) powerTxt = `威力 ${move.power || 0}`;
+    btn.innerHTML = `
+      <div class="sk-name">${move.name}</div>
+      <div class="sk-desc">${move.desc || ''}</div>
+      <div class="sk-foot">
+        <span class="sk-type">${typeLabel}</span>
+        <span>${powerTxt}</span>
+        <span>EP ${move.ep || 0}</span>
+      </div>`;
     btn.addEventListener('click', () => playTurn({ kind: 'move', move }));
     return btn;
   }
 
-  if (atkMoves.length) {
-    const g = document.createElement('div');
-    g.className = 'move-group offense';
-    g.innerHTML = '<div class="move-group-label">进攻</div>';
-    atkMoves.forEach((mv) => g.appendChild(makeBtn(mv)));
-    box.appendChild(g);
-  }
-  if (defMoves.length || otherMoves.length) {
-    const g = document.createElement('div');
-    g.className = 'move-group defense';
-    g.innerHTML = '<div class="move-group-label">防御 / 其他</div>';
-    [...defMoves, ...otherMoves].forEach((mv) => g.appendChild(makeBtn(mv)));
-    box.appendChild(g);
-  }
+  const grid = document.createElement('div');
+  grid.className = 'skill-grid-2';
+  [...atkMoves, ...defMoves, ...otherMoves].forEach((mv) => grid.appendChild(makeCard(mv)));
+  box.appendChild(grid);
 
   const benchAlive = P.team.filter((b, i) => i !== P.active && b.hp > 0).length;
+  const host = optBox || box;
+  if (optBox) optBox.innerHTML = '';
+
   const sw = document.createElement('button');
   sw.type = 'button';
   sw.className = 'move m-switch';
@@ -2041,10 +2052,9 @@ function renderActions() {
   sw.innerHTML = `
     <span class="move-name">换人</span>
     <span class="move-meta">剩余 ${P.switches} 次</span>
-    <span class="move-desc">${benchAlive === 0 ? '没有后备了' : '消耗一回合换一只上场'}</span>
   `;
   sw.addEventListener('click', () => { state.pendingSwitch = 'pick'; renderActions(); });
-  box.appendChild(sw);
+  host.appendChild(sw);
 
   const skip = document.createElement('button');
   skip.type = 'button';
@@ -2053,10 +2063,9 @@ function renderActions() {
   skip.innerHTML = `
     <span class="move-name">跳过</span>
     <span class="move-meta">EP +5</span>
-    <span class="move-desc">放弃这回合，回 5 EP（回合末再回）</span>
   `;
   skip.addEventListener('click', () => playTurn({ kind: 'skip' }));
-  box.appendChild(skip);
+  host.appendChild(skip);
 }
 
 function addCancel(box) {
