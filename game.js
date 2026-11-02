@@ -131,7 +131,7 @@ const MONSTERS = {
     counterB: { name: '硬化', dodge: 30, guard: 0.3, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '砂尘暴', power: 230, ep: 30, acc: 74, autoField: '沙漠化', ultType: 'beam', desc: '无明显效果' },
     field: { name: '沙漠化', ep: 8, kind: 'dodgeBoost', value: 15, turns: 3, desc: '展开沙漠地形，自身闪避 +15%，3 回合' },
-    passive: { name: '砂岚', kind: 'fieldDodge', value: 8, desc: '场上存在领域时，我方全队闪避 +8' },
+    passive: { name: '砂岚', kind: 'fieldDodge', value: 12, desc: '场上存在【沙漠化】时，我方全队闪避 +12' },
   },
 
   redking: {
@@ -202,7 +202,7 @@ const MONSTERS = {
     counterA: { name: '杰顿屏障', dodge: 70, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '瞬间移动', dodge: 42, guard: 0.4, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '杰顿终极光线', power: 300, ep: 32, acc: 80, ultType: 'beam', desc: '无明显效果' },
-    field: { name: '最终兵器', ep: 17, kind: 'statBoost', value: 20, turns: 3, desc: '全属性 +20%，3 回合' },
+    field: { name: '最终侵略兵器', ep: 17, kind: 'statBoost', value: 25, turns: 3, desc: '全属性 +25%，3 回合' },
     passive: { name: '光线吸收', kind: 'absorbJudge', threshold: 30, desc: '受光线伤害 <30 反击满威力，≥30 反击减半并冷却 2 回合' },
   },
 
@@ -459,6 +459,7 @@ function makeMon(key) {
     : { hp: d.hp, atk: d.atk, def: d.def, spd: d.spd };
   const m = {
     key, name: d.name, sub: d.sub, type: d.type, typeName: d.typeName,
+    overlord: !!d.overlord,
     maxHp: base.hp, hp: base.hp, atk: base.atk, def: base.def, spd: base.spd, cost: d.cost,
     ep: EP_START, moves,
     counterBonus: 0, orbReady: false,
@@ -599,6 +600,7 @@ function rollHit(att, def, move, defMove) {
   const ab = att.buffs;
   const db = def.buffs;
   let dodge = 0, guard = 0, mult = 1;
+  let dualBreak = false;
   let note = '';
 
   // 必中（布鲁顿领域）
@@ -637,7 +639,8 @@ function rollHit(att, def, move, defMove) {
         || (move.type === 'beam' && defMove.vs === 'beam');
       if (same) {
         dodge = defMove.dodge || 0;
-        guard = defMove.guard || 0;
+        // 反制 A 默认有 12% 减伤（防御不及也能挡一点）
+        guard = defMove.guard || (defMove.vs === 'beam' ? 0.12 : 0);
         note = '被反制';
       } else {
         mult = BREAK;
@@ -647,7 +650,8 @@ function rollHit(att, def, move, defMove) {
   } else if (defType === 'melee' || defType === 'beam') {
     if (move.type !== defType && effSpd(att) > effSpd(def)) {
       mult = BREAK;
-      note = '破姿态';
+      note = '破姿态（先手压制）';
+      dualBreak = true;
     }
   }
 
@@ -670,7 +674,7 @@ function rollHit(att, def, move, defMove) {
   }
   const defSide = state.player.team.includes(def) ? state.player : state.enemy;
   const antlar = defSide.team[defSide.active];
-  if (antlar?.passive?.kind === 'fieldDodge' && state.field) {
+  if (antlar?.passive?.kind === 'fieldDodge' && state.field?.name === '沙漠化') {
     dodge = Math.min(95, dodge + antlar.passive.value);
   }
 
@@ -710,6 +714,8 @@ function rollHit(att, def, move, defMove) {
   let guardVal = guard;
   if (move.guardFactor) guardVal *= move.guardFactor;
   if (guardVal > 0) dmg *= 1 - guardVal;
+  // 双攻时慢的一方：破姿态伤害打八五折，避免被白打死
+  if (dualBreak) dmg *= 0.85;
   if (inRedZone()) dmg *= 1.2;
   dmg *= 0.9 + rnd() * 0.2;
 
@@ -1187,6 +1193,12 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   log(`　${target.name} -${res.dmg} HP　${res.note}`, 'hit');
   flash(T === state.player ? 'player' : 'enemy');
 
+  // 布鲁顿：大招命中后展开四次元扭曲
+  if (move.opensWarp && target === def) {
+    state.warp = { owner: S, turns: 2, value: 60 };
+    log('　展开四次元扭曲（2 回合，全队受到 <60 伤害无效化）', 'sys');
+  }
+
   // 技能效果
   if (move.triggerMark && target.status.mark > 0) {
     target.status.mark = 0;
@@ -1200,7 +1212,7 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   if (move.fx && target === def) applyFx(target, move, att);
 
   // 龙森湖 / 火焰：双方
-  if (move.lakeChance && rnd() * 100 < move.lakeChance) {
+  if (foeMove?.lakeChance && rnd() * 100 < foeMove.lakeChance) {
     att.status.lake = 2;
     def.status.lake = 2;
     log('　龙森湖泛起（双方 2 回合，每回合 -2 EP）', 'sys');
@@ -2243,6 +2255,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (mode === 'dex') { openDex(); return; }
       if (mode === 'tutorial') { startTutorial(); return; }
       gameMode = mode;
+      selected = [];
       $('#modeSelect').hidden = true;
       $('#pick').hidden = false;
       const t = $('#pickTitle');
@@ -2253,6 +2266,7 @@ window.addEventListener('DOMContentLoaded', () => {
           ? '选 3 只去打三轮：两轮威托编队，最后一轮是初代奥特曼。只能用怪兽阵容。'
           : '3v3 对 AI。编成点数上限 20，每只带 4 个技能。满足羁绊会给全队加成。';
       }
+      renderPick();
     });
   });
   const db = $('#dexBack');
@@ -2265,6 +2279,7 @@ window.addEventListener('DOMContentLoaded', () => {
 if (typeof window !== 'undefined') {
   window.__TEST__ = {
     startGame, startTutorial, showTutStep, playTurn, aiChoose, getState: () => state, MONSTERS, TEAM_COST, monPool, MUTEX,
+    makeMon, rollHit, applyFx, execMove, resolveClash, effAtk, effDef, effSpd, typeMult, fieldBoost, freshStatus, freshBuffs, COMMON, MAX_TIMER,
     BONDS, PASSIVES_REF: null,
     setLoadout: (key, ids) => { loadout[key] = ids; },
     getLoadout: () => loadout,
