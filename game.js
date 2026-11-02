@@ -829,12 +829,11 @@ async function playTurn(action) {
   const pMon = P.team[P.active];
   const eMon = E.team[E.active];
 
-  // 眩晕：跳过整个回合
-  if (pMon.status.stun > 0) {
+  // 眩晕：只让中招方无法行动，对方照常出手
+  const pStunned = pMon.status.stun > 0;
+  if (pStunned) {
     pMon.status.stun--;
-    log(`你 · ${pMon.name} 眩晕中，无法行动`, 'dim');
-    await endTurnOnly(P, E);
-    return;
+    log(`你 · ${pMon.name} 眩晕中，这回合无法行动`, 'dim');
   }
 
   const eAction = aiChoose(E, P);
@@ -888,20 +887,23 @@ async function playTurn(action) {
   const pNow = P.team[P.active];
   const eNow = E.team[E.active];
 
+  // 敌方眩晕判定（放在出手计算之前）
+  const eStunned = eNow.status.stun > 0;
+  if (eStunned) {
+    eNow.status.stun--;
+    log(`对手 · ${eNow.name} 眩晕中，这回合无法行动`, 'dim');
+  }
+
   let pMustDefend = action.kind === 'switch' && !pFastSwitch;
 
-  const pMove = action.kind === 'move' ? action.move
-    : action.kind === 'switch' && action.follow ? action.follow : null;
-  const eMove = eAction.kind === 'move' ? eAction.move
-    : eAction.kind === 'switch' && eAction.follow ? eAction.follow : null;
+  const pMove = pStunned ? null
+    : (action.kind === 'move' ? action.move
+      : action.kind === 'switch' && action.follow ? action.follow : null);
+  const eMove = eStunned ? null
+    : (eAction.kind === 'move' ? eAction.move
+      : eAction.kind === 'switch' && eAction.follow ? eAction.follow : null);
 
-  // 眩晕：AI 侧
-  if (eNow.status.stun > 0) {
-    eNow.status.stun--;
-    log(`对手 · ${eNow.name} 眩晕中，无法行动`, 'dim');
-    await endTurnOnly(P, E);
-    return;
-  }
+
 
   // 击退/浮空：格斗技失效
   const pMeleeBlocked = pMove?.type === 'melee' && pNow.status.noMelee > 0;
