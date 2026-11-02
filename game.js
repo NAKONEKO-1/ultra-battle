@@ -571,9 +571,12 @@ function startGame(playerKeys, enemyTeamKeys, mode) {
     }
   }
 
+  $('#modeSelect').hidden = true;
+  $('#dex').hidden = true;
   $('#pick').hidden = true;
   $('#battle').hidden = false;
   $('#banner').hidden = true;
+  if (document.body) document.body.classList.add('in-battle');
   $('#log').innerHTML = '';
 
   applySiteEffects(siteKey);
@@ -2160,6 +2163,7 @@ function showBanner() {
     $('#pick').hidden = true;
     $('#dex').hidden = true;
     $('#banner').hidden = true;
+    if (document.body) document.body.classList.remove('in-battle');
     state = null;
     if (wasTutorial) log = log;
   });
@@ -2310,6 +2314,7 @@ function startTutorial() {
   $('#dex').hidden = true;
   $('#pick').hidden = true;
   $('#battle').hidden = false;
+  if (document.body) document.body.classList.add('in-battle');
   startGame(['bemular'], ['neronga'], 'tutorial');
   for (const m of state.enemy.team) {
     m.maxHp = Math.round(m.maxHp * 0.45);

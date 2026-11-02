@@ -1,3 +1,6 @@
+/* 统一 hidden 规则：作者样式里的 display 会覆盖 UA 的 [hidden] */
+[hidden] { display: none !important; }
+
 :root {
   --bg: #070a11;
   --bg2: #0b1220;
@@ -1415,4 +1418,93 @@ html, body {
   .timer-ring b { font-size: 18px; }
   .skill-card { min-height: 58px; padding: 7px 9px; }
   .skill-card .sk-desc { display: none; }
+}
+
+
+/* ========== 紧凑战斗布局 ========== */
+/* 对战时隐藏主界面头部 */
+body.in-battle .head,
+body.in-battle .foot { display: none; }
+
+body.in-battle .wrap {
+  padding: 8px 12px 12px;
+  max-width: 1180px;
+}
+
+body.in-battle .battle {
+  gap: 8px;
+  grid-template-columns: 1fr 1.1fr;
+  grid-template-areas:
+    "info enemy"
+    "center center"
+    "player skills";
+}
+
+/* 面板更紧凑 */
+body.in-battle .info-panel,
+body.in-battle .mon-card {
+  padding: 9px 11px;
+  border-radius: 13px;
+}
+
+body.in-battle .panel-title { font-size: 10px; margin-bottom: 5px; letter-spacing: 2px; }
+
+body.in-battle .info-panel .log {
+  min-height: 96px;
+  max-height: 150px;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+body.in-battle .mon-portrait { width: 68px; height: 68px; border-radius: 11px; }
+body.in-battle .mon-name { font-size: 16px; }
+body.in-battle .mon-alias { font-size: 10px; }
+body.in-battle .mon-passive { font-size: 10px; margin-top: 2px; line-height: 1.4; }
+body.in-battle .mon-bars { margin-top: 5px; gap: 4px; }
+body.in-battle .mon-bars .bar { height: 10px; }
+body.in-battle .mon-bars .num { font-size: 10px; min-width: 52px; }
+body.in-battle .mon-type { font-size: 9px; padding: 1px 6px; }
+
+body.in-battle .center-panel { gap: 5px; padding: 2px 0; }
+body.in-battle .center-panel .vs { font-size: 16px; }
+body.in-battle .timer-ring { width: 62px; height: 62px; }
+body.in-battle .timer-ring b { font-size: 21px; }
+body.in-battle .timer-cap { font-size: 8px; }
+body.in-battle .site-line { font-size: 11px; padding: 2px 10px; }
+body.in-battle .turn-line { font-size: 10px; }
+
+body.in-battle .skill-panel { gap: 6px; }
+body.in-battle .skill-grid-2 { gap: 6px; }
+body.in-battle .skill-card {
+  min-height: 62px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  gap: 2px;
+}
+body.in-battle .skill-card .sk-name { font-size: 12px; }
+body.in-battle .skill-card .sk-desc { font-size: 9px; line-height: 1.35; }
+body.in-battle .skill-card .sk-foot { font-size: 8px; gap: 6px; }
+
+body.in-battle .option-box { margin-top: 6px; padding-top: 6px; gap: 6px; }
+body.in-battle .option-box .move { padding: 6px 8px; }
+body.in-battle .option-box .move-name { font-size: 12px; }
+body.in-battle .option-box .move-meta { font-size: 9px; }
+
+body.in-battle .state-icons { margin-top: 3px; gap: 3px; }
+body.in-battle .state-icon { font-size: 11px; padding: 1px 4px; }
+
+/* 小屏进一步压缩 */
+@media (max-width: 860px) {
+  body.in-battle .battle {
+    grid-template-areas:
+      "info"
+      "enemy"
+      "center"
+      "player"
+      "skills";
+  }
+  body.in-battle .info-panel .log { max-height: 110px; }
+  body.in-battle .mon-portrait { width: 56px; height: 56px; }
+  body.in-battle .timer-ring { width: 52px; height: 52px; }
+  body.in-battle .timer-ring b { font-size: 17px; }
 }
