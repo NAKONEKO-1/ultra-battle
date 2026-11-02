@@ -687,7 +687,7 @@ function rollHit(att, def, move, defMove) {
   }
 
   if (move.type === 'ult' && !move.selfDestruct) {
-    const acc = (move.acc || 100) + (effSpd(att) - effSpd(def)) * 0.4 + ab.accUp
+    const acc = (move.acc || 100) + (effSpd(att) - effSpd(def)) * 0.4
       + (move.type === 'melee' ? ab.meleeAcc : 0) + siteAccMod(att);
     if (!alwaysHit && rnd() * 100 > acc) return { dmg: 0, kind: 'miss', note: '必杀落空' };
   }
@@ -744,6 +744,10 @@ function rollHit(att, def, move, defMove) {
   if (antlar?.passive?.kind === 'fieldDodge' && state.field?.name === '沙漠化') {
     dodge = Math.min(95, dodge + antlar.passive.value);
   }
+
+  // 命中加成统一穿透闪避（正数 = 降低对方闪避）
+  const accMod = siteAccMod(att) + (att.buffs.accUp || 0);
+  if (accMod) dodge = Math.max(0, dodge - accMod);
 
   if (dodge > 0 && rnd() * 100 < dodge) {
     return { dmg: 0, kind: 'dodge', note };
