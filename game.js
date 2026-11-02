@@ -1865,7 +1865,7 @@ function render() {
   if (!state) return;
   $('#turnNum').textContent = state.turn;
   $('#timerNum').textContent = state.timer;
-  $('#timerFill').style.width = (state.timer / MAX_TIMER) * 100 + '%';
+
   const tc = $('#timerCircle');
   if (tc) tc.classList.toggle('danger', state.timer <= 3);
 
