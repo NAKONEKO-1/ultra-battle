@@ -270,7 +270,7 @@ const MONSTERS = {
   ultraman: {
     id: 'ultraman', name: '初代奥特曼', sub: '光之巨人', type: 'ultra', typeName: '光',
     hp: 220, atk: 98, def: 78, spd: 80, cost: 9,
-    versusStats: { hp: 180, atk: 88, def: 70, spd: 80 },
+    versusStats: { hp: 145, atk: 80, def: 62, spd: 78 },
     melee: { name: '奥特格斗', power: 88, ep: 6, desc: '光之巨人的体术' },
     beamM: { name: '斯派修姆光线', power: 130, ep: 16, desc: '双臂交叉的必杀光线' },
     counterA: { name: '奥特屏障', dodge: 58, ep: 5, vs: 'beam', desc: '光线屏障' },
@@ -475,9 +475,10 @@ const hpPct = (m) => m.hp / m.maxHp;
 const teamSpeed = (S) => S.team.reduce((a, m) => a + (m.hp > 0 ? m.spd : 0), 0);
 const inRedZone = () => state.timer <= 3;
 
-const effAtk = (m) => Math.round((m.atk + (m.buffs.copyAtk || 0) + (m.buffs.atkGain || 0)) * (m.buffs.shrink ? 0.75 : 1));
-const effDef = (m) => Math.round((m.def + (m.buffs.copyDef || 0)) * (m.buffs.shrink ? 0.75 : 1));
-const effSpd = (m) => m.spd + (m.buffs.speedUp || 0);
+const statMul = (m) => 1 + (m.buffs.statMul || 0) / 100;
+const effAtk = (m) => Math.round((m.atk + (m.buffs.copyAtk || 0) + (m.buffs.atkGain || 0)) * (m.buffs.shrink ? 0.75 : 1) * statMul(m));
+const effDef = (m) => Math.round((m.def + (m.buffs.copyDef || 0)) * (m.buffs.shrink ? 0.75 : 1) * statMul(m));
+const effSpd = (m) => Math.round((m.spd + (m.buffs.speedUp || 0)) * statMul(m));
 
 const canUse = (m, move) => {
   if (move.passive) return false;
@@ -854,6 +855,8 @@ async function playTurn(action) {
     else if (eOrb && !pOrb) pFirst = false;
     else if (pNow.buffs.firstStrike) pFirst = true;
     else if (eNow.buffs.firstStrike) pFirst = false;
+    else if (state.field?.kind === 'firstStrike' && state.field.owner === P) pFirst = true;
+    else if (state.field?.kind === 'firstStrike' && state.field.owner === E) pFirst = false;
     else if (pNow.status.slow > 0) pFirst = false;
     else if (eNow.status.slow > 0) pFirst = true;
     else if (action.kind === 'switch' && pFastSwitch) pFirst = false;
@@ -1116,6 +1119,11 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
         log(`　生物/地底只有 ${count} 只，不触发额外复活`, 'dim');
       }
     }
+    // 全属性领域：给全队加倍率
+    if (move.kind === 'statBoost') {
+      for (const mm of S.team) mm.buffs.statMul = move.value;
+      log(`　我方全队全属性 +${move.value}%`, 'ep');
+    }
     state.field = f;
     log(`${sideName} · ${att.name} 展开 ${move.name}`, 'sys');
     log(`　${move.desc}`, 'dim');
@@ -1192,6 +1200,12 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   target.hp = Math.max(0, target.hp - res.dmg);
   log(`　${target.name} -${res.dmg} HP　${res.note}`, 'hit');
   flash(T === state.player ? 'player' : 'enemy');
+
+  // 四次元光线：延长扭曲
+  if (move.extWarp && state.warp) {
+    state.warp.turns += 1;
+    log('　四次元扭曲延长 1 回合', 'sys');
+  }
 
   // 布鲁顿：大招命中后展开四次元扭曲
   if (move.opensWarp && target === def) {
@@ -1273,6 +1287,11 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   }
 
   // 防守方被动
+  if (target.passive?.kind === 'epAbsorb' && move.type === 'beam') {
+    target.ep = clamp(target.ep + target.passive.value, 0, EP_MAX);
+    target.buffs.ultBoost = target.passive.boost;
+    log(`　${target.name} 吸电：EP +${target.passive.value}，下一发 +${target.passive.boost}%`, 'ep');
+  }
   if (target.passive?.kind === 'regenFlat') {
     target.hp = Math.min(target.maxHp, target.hp + target.passive.value);
   } else if (target.passive?.kind === 'regen' || target.passive?.kind === 'regenSplit') {
@@ -1376,6 +1395,14 @@ function applyFx(target, move, att) {
     case 'stun':
       target.status.stun = 1;
       log(`　${target.name} 眩晕`, 'sys');
+      break;
+    case 'noMelee':
+      if (move.name === '捕捉光环' && target.key === 'zetton') {
+        log('　杰顿免疫了捕捉光环', 'dim');
+        break;
+      }
+      target.status.noMelee = 1;
+      log(`　${target.name} 无法使用格斗技术（1 回合）`, 'sys');
       break;
     case 'noMelee2':
       if (move.name === '捕捉光环' && target.key === 'zetton') {
@@ -1516,6 +1543,9 @@ function endOfTurn() {
           caster.atk -= state.field.drained.reduce((a, d) => a + d.atk, 0);
           caster.def -= state.field.drained.reduce((a, d) => a + d.def, 0);
         }
+      }
+      if (state.field.kind === 'statBoost') {
+        for (const side of [P, E]) for (const mm of side.team) mm.buffs.statMul = 0;
       }
       log(`${state.field.name} 消散了`, 'dim');
       state.field = null;
