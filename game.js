@@ -284,14 +284,14 @@ const MONSTERS = {
       { name: '飞踢', type: 'melee', power: 80, ep: 9, desc: '无明显效果' },
       { name: '切割光线', type: 'beam', power: 65, ep: 6, desc: '无明显效果' },
       { name: '捕捉光环', type: 'beam', power: 50, ep: 7, fx: 'noMelee', firstStrike: true, desc: '必定先手，禁格斗一回合（对杰顿无效）' },
-      { name: '奥特念力', type: 'beam', power: 30, ep: 8, fx: 'noBeam', triggerMark: true, desc: '禁光线一回合；若对方有标记则引爆' },
+      { name: '奥特念力', type: 'beam', power: 30, ep: 8, fx: 'noBeam', triggerMark: true, desc: '禁光线一回合；若对方带标记则引爆（结算奥特攻击光线的伤害）' },
       { name: '奥特屏障', type: 'stance', dodge: 58, ep: 5, vs: 'beam', epBack: 10, desc: '反制成功后恢复 10 EP' },
       { name: '光轮防御', type: 'stance', dodge: 68, ep: 15, vs: 'beam', counterUlt: '八分光轮', desc: '反制成功后释放八分光轮' },
       { name: '奥特V字屏障', type: 'stance', dodge: 40, guard: 0.3, ep: 8, vs: 'melee', desc: '有效降低光线伤害' },
       { name: '身体强度', type: 'stance', dodge: 38, guard: 0.2, ep: 2, vs: 'melee', immuneElectric: true, desc: '免疫电击伤害' },
       { name: '八分光轮', type: 'ult', power: 230, ep: 30, acc: 82, fx: 'cut', chance: 65, ultType: 'beam', desc: '65% 造成切割' },
       { name: '斯派修姆光线', type: 'ult', power: 200, ep: 25, acc: 86, ultType: 'beam', clashBonus: 10, desc: '对波成功额外 +10 差值' },
-      { name: '奥特攻击光线', type: 'ult', power: 300, ep: 45, acc: 76, ultType: 'beam', markOnly: true, desc: '命中不造成伤害，留下标记 3 回合' },
+      { name: '奥特攻击光线', type: 'ult', power: 300, ep: 45, acc: 76, ultType: 'beam', markOnly: true, desc: '命中不造成伤害，只留下标记 3 回合；此期间用奥特念力命中可引爆，结算这招 300 威力' },
     ],
   },
 };
@@ -1228,15 +1228,12 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
 
   // 技能效果
   if (move.triggerMark && target.status.mark > 0) {
+    // 标记只能来自【奥特攻击光线】，引爆时结算它那 300 威力
     target.status.mark = 0;
-    const atkMove = att.moves.find((mm) => mm.name === '奥特攻击光线')
-      || MONSTERS[att.key]?.pool?.find((mm) => mm.name === '奥特攻击光线')
-      || { power: 300 };
-    if (atkMove) {
-      const boom = Math.max(1, Math.round(atkMove.power * (effAtk(att) / effDef(target)) * 0.16 + 2));
-      target.hp = Math.max(0, target.hp - boom);
-      log(`　标记被引爆！${target.name} -${boom} HP`, 'sys');
-    }
+    const MARK_POWER = 300;
+    const boom = Math.max(1, Math.round(MARK_POWER * (effAtk(att) / effDef(target)) * 0.16 + 2));
+    target.hp = Math.max(0, target.hp - boom);
+    log(`　标记被引爆！${target.name} -${boom} HP（奥特攻击光线结算）`, 'sys');
   }
   if (move.fx && target === def) applyFx(target, move, att);
 
