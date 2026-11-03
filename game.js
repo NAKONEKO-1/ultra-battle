@@ -1144,6 +1144,10 @@ async function resolveClash(P, E, pMove, eMove) {
     return;
   }
 
+  // 进入对波即消耗本场对波机会（每角色一次）
+  pMon.buffs.clashUsed = true;
+  eMon.buffs.clashUsed = true;
+
   const pWin = D1 >= D2;
   const diff1 = Math.abs(D1 - D2);
   const winnerDmg1 = Math.max(D1, D2);
