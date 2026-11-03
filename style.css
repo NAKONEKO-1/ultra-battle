@@ -1851,3 +1851,14 @@ body.in-battle .state-icon { font-size: 11px; padding: 1px 4px; }
   font-size: 10px;
   letter-spacing: 1px;
 }
+
+
+/* ---------- 选人返回按钮 ---------- */
+.pick-back {
+  align-self: flex-start;
+  margin-bottom: 8px;
+}
+
+.pick-head {
+  flex-wrap: wrap;
+}

@@ -2821,6 +2821,21 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   const db = $('#dexBack');
   if (db) db.addEventListener('click', closeDex);
+
+  const pb = $('#pickBack');
+  if (pb) {
+    pb.addEventListener('click', () => {
+      selected = [];
+      gameMode = 'versus';
+      $('#pick').hidden = true;
+      $('#battle').hidden = true;
+      $('#dex').hidden = true;
+      $('#modeSelect').hidden = false;
+      if (document.body) document.body.classList.remove('in-battle');
+      const vl = $('#verLine');
+      if (vl) vl.textContent = 'v1.0 · 已解锁 ' + (isUnlocked() ? 19 : 16) + ' 只';
+    });
+  }
   $('#startBtn').addEventListener('click', () => {
     unlockAudio();
     if (selected.length === 3) startGame(selected.slice(), null, gameMode);
