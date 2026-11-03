@@ -56,7 +56,7 @@ const MONSTERS = {
     melee: { name: '俯身冲刺', power: 65, ep: 8, desc: '无明显效果' },
     beamM: { name: '苍蓝热射线', power: 70, ep: 12, desc: '无明显效果' },
     counterA: { name: '光球化', dodge: 62, ep: 5, vs: 'beam', orbSet: true, desc: '使用后，光球化冲撞必定先手' },
-    counterB: { name: '水中适应能力', dodge: 38, guard: 0.25, ep: 5, vs: 'melee', lakeChance: 75, desc: '无明显效果' },
+    counterB: { name: '水中适应能力', dodge: 38, guard: 0.25, ep: 5, vs: 'melee', lakeChance: 75, oceanOrb: true, desc: '在【海洋】地形时使用，自动衔接【光球化】，且双方进入【龙森湖】' },
     ult: { name: '光球化冲撞', power: 260, ep: 28, acc: 75, orbFirst: true, ultType: 'melee', desc: '上回合光球化则先制' },
     field: { name: '宇宙逃犯', ep: 5, kind: 'cosmosBoost', value: 5, turns: 2, desc: '所有宇宙角色伤害 +5%，2 回合' },
     passive: { name: '潜航', kind: 'dodgeBoost', value: 25, desc: '闪避成功后，下一次攻击伤害 +25%' },
@@ -67,7 +67,7 @@ const MONSTERS = {
     hp: 95, atk: 70, def: 55, spd: 85, cost: 8,
     melee: { name: '巨钳攻击', power: 55, ep: 6, desc: '无明显效果' },
     beamM: { name: '赤色冷冻光束', power: 72, ep: 12, fx: 'slow', desc: '造成迟缓：敌方接下来两次行动必定慢于我方' },
-    counterA: { name: '分身术', dodge: 72, ep: 5, vs: 'beam', givesDouble: true, desc: '无明显效果' },
+    counterA: { name: '分身术', dodge: 72, ep: 5, vs: 'beam', givesDouble: true, useGives: 'double', desc: '使用后，获得【二重身】' },
     counterB: { name: '瞬间移动能力', dodge: 50, guard: 0.2, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '白色破坏光线', power: 230, ep: 26, acc: 82, doubleBonus: true, ultType: 'beam', desc: '无明显效果' },
     field: { name: '高科技族群', ep: 7, kind: 'beamBoost', value: 10, turns: 2, desc: '场上光线技能伤害 +10%，2 回合' },
@@ -114,7 +114,7 @@ const MONSTERS = {
     id: 'greenmons', name: '绿蒙斯', sub: '巨大植物', type: 'earthMonster', typeName: '地球怪兽',
     hp: 105, atk: 72, def: 58, spd: 65, cost: 5,
     melee: { name: '巨叶重击', power: 52, ep: 6, desc: '无明显效果' },
-    beamM: { name: '雾状麻醉液', power: 58, ep: 12, drain: 8, fx: 'stun', desc: '造成眩晕：接下来一回合无法行动' },
+    beamM: { name: '雾状麻醉液', power: 58, ep: 12, drain: 8, fx: 'stun', cooldown: 1, desc: '造成眩晕：接下来一回合无法行动，该技能使用后冷却一回合' },
     counterA: { name: '粘液', dodge: 60, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '厚叶', dodge: 38, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '巨大化', power: 0, ep: 28, acc: 100, selfBuff: true, desc: '对自己使用：全属性 +25%，受光线伤害 +15%，2 回合' },
@@ -139,7 +139,7 @@ const MONSTERS = {
     hp: 140, atk: 105, def: 75, spd: 40, cost: 8,
     melee: { name: '铁拳', power: 70, ep: 8, desc: '无明显效果' },
     beamM: { name: '投石', power: 55, ep: 14, combo: 75, desc: '无明显效果' },
-    counterA: { name: '咆哮', dodge: 40, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterA: { name: '咆哮', dodge: 40, ep: 5, vs: 'beam', roarAtk: 10, desc: '反制成功时，若对手是【怪兽】，降低对手攻击力 10%' },
     counterB: { name: '铁壁', dodge: 30, guard: 0.35, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '岩石崩落', power: 280, ep: 30, acc: 72, ultType: 'melee', desc: '无明显效果' },
     field: { name: '怪兽之王', ep: 10, kind: 'typeBoost', types: ['earthMonster', 'cosmosBeast', 'esper'], value: 10, turns: 3, desc: '攻击地球怪兽/宇宙怪兽/超能力怪兽伤害 +10%' },
@@ -173,12 +173,12 @@ const MONSTERS = {
   gomora: {
     id: 'gomora', overlord: true, name: '哥莫拉', sub: '古代怪兽', type: 'earthMonster', typeName: '地球怪兽',
     hp: 130, atk: 88, def: 72, spd: 50, cost: 6,
-    melee: { name: '角撞', power: 60, ep: 6, desc: '无明显效果' },
+    melee: { name: '角撞', power: 60, ep: 6, chain: '超振动波', chainChance: 65, desc: '65% 概率，立刻衔接【超振动波】' },
     beamM: { name: '超振动波', power: 68, ep: 12, desc: '无明显效果' },
     counterA: { name: '挖地', dodge: 58, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '铁壁', dodge: 38, guard: 0.32, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '甩尾攻击', power: 255, ep: 28, acc: 76, fx: 'down', downChance: 75, ultType: 'melee', desc: '75% 使敌人倒地，倒地后连锁追击，每次伤害减半、概率 -25%' },
-    field: { name: '怪兽殿下', ep: 8, kind: 'firstStrike', turns: 3, desc: '我方全队上场后第一次攻击先手' },
+    field: { name: '怪兽殿下', ep: 8, kind: 'secondWind', turns: 9, desc: '获得【二番战】：可断尾失去大招，恢复 50% HP' },
     passive: { name: '蓄能', kind: 'ultBoost', value: 15, desc: '光线命中后，下次必杀 +15%' },
   },
 
@@ -199,9 +199,9 @@ const MONSTERS = {
     hp: 135, atk: 95, def: 78, spd: 60, cost: 9,
     melee: { name: '怪力', power: 62, ep: 6, desc: '无明显效果' },
     beamM: { name: '一兆度火球', power: 85, ep: 14, desc: '无明显效果' },
-    counterA: { name: '杰顿屏障', dodge: 70, ep: 5, vs: 'beam', desc: '无明显效果' },
+    counterA: { name: '杰顿屏障', dodge: 70, ep: 5, vs: 'beam', reflectUlt: '八分光轮', desc: '反弹【八分光轮】' },
     counterB: { name: '瞬间移动', dodge: 42, guard: 0.4, ep: 5, vs: 'melee', desc: '无明显效果' },
-    ult: { name: '杰顿终极光线', power: 300, ep: 32, acc: 80, ultType: 'beam', desc: '无明显效果' },
+    ult: { name: '杰顿终极光线', power: 300, ep: 32, acc: 80, ultType: 'beam', instaKillVs: 'ultraman', instaKillRate: 25, mustHitVs: '斯派修姆光线', desc: '击中【奥特曼】时 25% 概率直接致死；反击【斯派修姆光线】时必定命中' },
     field: { name: '最终侵略兵器', ep: 17, kind: 'statBoost', value: 25, turns: 3, desc: '全属性 +25%，3 回合' },
     passive: { name: '光线吸收', kind: 'absorbJudge', threshold: 45, desc: '受光线伤害 <45 反击满威力，≥45 反击减半并冷却 2 回合' },
   },
@@ -210,7 +210,7 @@ const MONSTERS = {
     id: 'bullton', overlord: true, name: '布鲁顿', sub: '四次元怪兽', type: 'esper', typeName: '超能力怪兽',
     hp: 100, atk: 67, def: 72, spd: 78, cost: 7,
     melee: { name: '奇异闪光', power: 55, ep: 4, fx: 'noMelee2', desc: '造成浮空两回合，无法释放格斗技' },
-    beamM: { name: '四次元光线', power: 67, ep: 9, drain: 9, extWarp: true, desc: '延长一回合四次元扭曲' },
+    beamM: { name: '四次元光线', power: 67, ep: 9, drain: 9, extWarp: true, cooldown: 1, desc: '延长一回合四次元扭曲，冷却一回合' },
     counterA: { name: '四次元屏障', dodge: 62, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '超自然现象', dodge: 52, guard: 0.3, ep: 10, vs: 'melee', desc: '无明显效果' },
     ult: { name: '四次元狂想', power: 122, ep: 37, acc: 100, opensWarp: true, ultType: 'beam', desc: '命中后展开四次元扭曲 2 回合' },
@@ -237,7 +237,7 @@ const MONSTERS = {
     beamM: { name: '反重力气体', power: 70, ep: 9, drain: 10, selfStun: true, desc: '被反制成功时，自身无法行动一回合' },
     counterA: { name: '羽箭防御', dodge: 60, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '替死鬼', dodge: 0, guard: 0, ep: 10, vs: 'melee', borrowCounter: true, desc: '借用队友最高防的反制 B' },
-    ult: { name: '羽箭风暴', power: 185, ep: 28, acc: 65, chase: '毒羽箭', chaseTable: [75, 45, 15], ultType: 'beam', desc: '造成伤害后 75%/45%/15% 连续追击毒羽箭' },
+    ult: { name: '羽箭风暴', power: 185, ep: 28, acc: 65, chase: '毒羽箭', chaseTable: [75, 45, 15], chasePower: [75, 50, 25], ultType: 'beam', desc: '造成伤害后 75%/45%/15% 连续追击，追击威力 75%/50%/25% 递减' },
     field: { name: '怪兽复活宣言', ep: 17, kind: 'extraRevive', turns: 99, desc: '我方队伍生物/地底达到 3 个时，额外获得一次被动复活' },
     passive: { name: '怪兽复活', kind: 'revive', value: 75, fallbackHeal: true, desc: '每场一次，倒下时复活队友；无倒下队友时治疗血量最低的队友 75%，不能选自己' },
   },
@@ -259,10 +259,10 @@ const MONSTERS = {
     id: 'vtol', name: '威托', sub: '科特队主力机', type: 'squad', typeName: '战队',
     hp: 110, atk: 65, def: 40, spd: 82, cost: 6,
     melee: { name: '机炮扫射', power: 38, ep: 4, desc: '机炮连射' },
-    beamM: { name: '大型导弹', power: 62, ep: 8, desc: '大型制导导弹' },
+    beamM: { name: '火星133', power: 62, ep: 8, vsBugs: 15, desc: '对【巴尔坦星人】【巴尔坦星人二世】额外造成 15% 伤害' },
     counterA: { name: '爬升', dodge: 50, ep: 4, vs: 'beam', desc: '拉起爬升' },
     counterB: { name: '装甲规避', dodge: 35, guard: 0.25, ep: 5, vs: 'melee', desc: '装甲硬吃' },
-    ult: { name: '饱和轰炸', power: 150, ep: 18, acc: 80, ultType: 'beam', desc: '全弹饱和攻击' },
+    ult: { name: 'QX炮', power: 150, ep: 18, acc: 80, ultType: 'beam', bonus20: 65, desc: '65% 概率造成额外 20 点伤害' },
     field: { name: '制空权', ep: 8, kind: 'beamBoost', value: 10, turns: 2, desc: '光线伤害 +10%，2 回合' },
     passive: { name: '重装机体', kind: 'none', desc: '火力更强' },
   },
@@ -459,7 +459,7 @@ function freshBuffs() {
     accUp: 0, ultBoost: 0, weaken: 0, regenOnHit: 0, speedUp: 0,
     copyAtk: 0, copyDef: 0, rage: 0, rageHurt: false,
     clone: null, absorb: false, absorbCd: 0, nullify: false, fieldAura: 0, shrink: 0,
-    atkGain: 0, dmgBoost: 0, meleeAcc: 0, firstStrike: false, clashSpent: false,
+    atkGain: 0, dmgBoost: 0, meleeAcc: 0, firstStrike: false, clashSpent: false, cooldowns: {},
   };
 }
 
@@ -761,10 +761,20 @@ function rollHit(att, def, move, defMove) {
     return { dmg: 0, kind: 'nullify', note: '反射板免疫光线' };
   }
 
+  // 杰顿终极光线：反击斯派修姆光线时必定命中
+  const mustHit = move.mustHitVs && defMove && defMove.name === move.mustHitVs;
   if (move.type === 'ult' && !move.selfDestruct) {
     const acc = (move.acc || 100) + (effSpd(att) - effSpd(def)) * 0.4
       + (move.type === 'melee' ? ab.meleeAcc : 0) + siteAccMod(att);
-    if (!alwaysHit && rnd() * 100 > acc) return { dmg: 0, kind: 'miss', note: '必杀落空' };
+    if (!alwaysHit && !mustHit && rnd() * 100 > acc) return { dmg: 0, kind: 'miss', note: '必杀落空' };
+  }
+  if (mustHit) log('　杰顿锁定斯派修姆光线 —— 必定命中', 'sys');
+
+  // 杰顿屏障：完全反弹八分光轮
+  if (defMove.reflectUlt && move.name === defMove.reflectUlt) {
+    const back = move.power * (effAtk(def) / effDef(att)) * 0.16 + 2;
+    log('　杰顿屏障 —— 八分光轮被原样弹回！', 'sys');
+    return { dmg: 0, kind: 'reflect', note: '屏障反弹', reflectDmg: Math.round(back) };
   }
 
   if (defType === 'stance') {
@@ -842,6 +852,13 @@ function rollHit(att, def, move, defMove) {
   if (def.passive?.kind === 'rage') dmg *= 1 + def.passive.hurt / 100;
   if (att.passiveBonus > 1) dmg *= att.passiveBonus;
   if (ab.dmgBoost) dmg *= 1 + ab.dmgBoost / 100;
+  // 威托·火星133：对巴尔坦 +15%
+  if (move.vsBugs && (def.key === 'baltan' || def.key === 'baltan2')) dmg *= 1 + move.vsBugs / 100;
+  // 威托·QX炮：65% 额外 +20
+  if (move.bonus20 && rnd() * 100 < move.bonus20) {
+    dmg += 20;
+    log('　QX炮命中要害，额外 +20 伤害', 'hit');
+  }
   if (fieldBoost(att, move)) dmg *= 1 + fieldBoost(att, move) / 100;
   // 贾米拉：我的故乡是地球
   if (state.field?.kind === 'dmgPerm' && state.field.owner === attSide) dmg *= 1.1;
@@ -875,6 +892,12 @@ function rollHit(att, def, move, defMove) {
   let absorbJudge = 0;
   if (move.type === 'beam' && def.passive?.kind === 'absorbJudge') {
     absorbJudge = Math.round(move.power * (effAtk(att) / effDef(def)) * 0.16 + 2);
+  }
+
+  // 杰顿终极光线：击中奥特曼 25% 直接致死
+  if (move.instaKillVs && def.key === move.instaKillVs && rnd() * 100 < (move.instaKillRate || 0)) {
+    log(`　${def.name} 被杰顿终极光线贯穿 —— 直接倒下`, 'sys');
+    return { dmg: def.hp, kind: 'hit', note: '一击必杀', lethal: true };
   }
 
   return { dmg: Math.max(1, Math.round(dmg)), kind: 'hit', note, judge: absorbJudge };
@@ -1038,7 +1061,20 @@ async function playTurn(action) {
   await endTurnOnly(P, E);
 }
 
-async function endTurnOnly(P, E) {
+async function tickCooldowns(P, E) {
+  for (const side of [P, E]) {
+    for (const m of side.team) {
+      if (!m.buffs.cooldowns) continue;
+      for (const k of Object.keys(m.buffs.cooldowns)) {
+        if (m.buffs.cooldowns[k] > 0) m.buffs.cooldowns[k] -= 1;
+        if (m.buffs.cooldowns[k] <= 0) delete m.buffs.cooldowns[k];
+      }
+    }
+  }
+}
+
+function endTurnOnly(P, E) {
+  tickCooldowns(P, E);
   if (!state.over) {
     endOfTurn();
     checkOver();
@@ -1230,6 +1266,13 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   if (move.selfDestruct && att.passive?.kind === 'bombDiscount' && hpPct(att) <= 0.3) {
     cost = Math.max(0, cost - att.passive.value);
   }
+  // 冷却检查
+  const cdKey = move.name;
+  if (att.buffs.cooldowns && att.buffs.cooldowns[cdKey] > 0) {
+    log(`${sideName} · ${att.name} 的 ${move.name} 冷却中（剩 ${att.buffs.cooldowns[cdKey]} 回合）`, 'dim');
+    return;
+  }
+
   if (att.ep < cost) {
     att.ep = clamp(att.ep + 10, 0, EP_MAX);
     log(`${sideName} · ${att.name} EP 不足，只能蓄能`, 'ep');
@@ -1237,8 +1280,23 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   }
   att.ep = Math.max(0, att.ep - cost);
 
+  // 带冷却的技能：使用时立刻登记
+  if (move.cooldown) {
+    att.buffs.cooldowns[cdKey] = move.cooldown;
+  }
+
   if (move.type === 'stance') {
     log(`${sideName} · ${att.name} 使用 ${move.name}`, 'act');
+    // 巴尔坦·分身术：使用即获得二重身
+    if (move.useGives === 'double' && att.status.double <= 0) {
+      att.status.double = 3;
+      log(`　${att.name} 分出二重身（3 回合）`, 'ep');
+    }
+    // 百慕拉·水中适应能力：海洋地形自动衔接光球化
+    if (move.oceanOrb && state.site === 'ocean') {
+      att.orbReady = true;
+      log(`　${att.name} 潜入水中 —— 光球化待发`, 'ep');
+    }
     if (move.orbSet) { att.orbReady = true; log(`　蓄势待发，下一手冲撞先制`, 'ep'); }
     if (move.faces) applyFace(att);
     if (move.accUpMelee) {
@@ -1250,6 +1308,11 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   }
 
   if (move.type === 'field') {
+    // 哥莫拉·怪兽殿下：获得二番战机会
+    if (move.kind === 'secondWind') {
+      att.buffs.secondWind = true;
+      log(`　${att.name} 藏起尾巴 —— 获得【二番战】`, 'ep');
+    }
     const f = {
       name: move.name, kind: move.kind, value: move.value,
       types: move.types, turns: move.turns, owner: S,
@@ -1305,6 +1368,19 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
 
   const res = rollHit(att, def, move, foeMove || { type: 'none' });
 
+  // 杰顿屏障：把八分光轮原样弹回去
+  if (res.kind === 'reflect') {
+    const back = res.reflectDmg || 0;
+    att.hp = Math.max(0, att.hp - back);
+    log(`　屏障反弹！${att.name} 自己吃下 ${back} 伤害`, 'hit');
+    floatText(S === state.player ? 'player' : 'enemy', '-' + back, 'dmg');
+    flash(S === state.player ? 'player' : 'enemy');
+    render();
+    await sleep(300);
+    checkOver();
+    return;
+  }
+
   if (res.kind === 'miss') { log(`　${res.note}`, 'miss'); return; }
   if (res.kind === 'nullify') { def.buffs.nullify = false; log(`　${res.note}`, 'miss'); return; }
   if (res.kind === 'dodge') {
@@ -1324,6 +1400,12 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
     if (foeMove?.givesDouble && def.status.double <= 0) {
       def.status.double = 3;
       log(`　${def.name} 获得二重身（3 回合）`, 'ep');
+    }
+    // 雷德王·咆哮：反制成功时若对手是怪兽，降攻 10%
+    if (foeMove?.roarAtk && ['earthMonster', 'cosmosBeast', 'esper'].includes(att.type)) {
+      const cut = Math.max(1, Math.round(att.atk * (foeMove.roarAtk / 100)));
+      att.atk = Math.max(10, att.atk - cut);
+      log(`　${def.name} 咆哮震慑，${att.name} 攻击 -10%`, 'sys');
     }
     if (foeMove?.epBack) {
       def.ep = clamp(def.ep + foeMove.epBack, 0, EP_MAX);
@@ -1407,15 +1489,28 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
     log('　展开四次元扭曲（2 回合，全队受到 <60 伤害无效化）', 'sys');
   }
 
-  // 羽箭风暴：连锁追击毒羽箭
+  // 羽箭风暴：连锁追击毒羽箭（威力 75%/50%/25% 递减）
   if (move.chase && target === def && target.hp > 0) {
-    const chasePower = 75;
-    for (const chance of (move.chaseTable || [75, 45, 15])) {
-      if (rnd() * 100 >= chance) break;
-      const d2 = Math.max(1, Math.round(chasePower * (effAtk(att) / effDef(target)) * 0.16 + 2));
+    const table = move.chaseTable || [75, 45, 15];
+    const powTable = move.chasePower || [75, 50, 25];
+    for (let ci = 0; ci < table.length; ci++) {
+      if (rnd() * 100 >= table[ci]) break;
+      const cp = powTable[ci] || powTable[powTable.length - 1];
+      const d2 = Math.max(1, Math.round(cp * (effAtk(att) / effDef(target)) * 0.16 + 2));
       target.hp = Math.max(0, target.hp - d2);
       log(`　追击 ${move.chase}！${target.name} -${d2} HP`, 'hit');
+      if (target.hp <= 0) break;
     }
+  }
+
+  // 哥莫拉·角撞：65% 立刻衔接超振动波
+  if (move.chain && target === def && target.hp > 0 && rnd() * 100 < (move.chainChance || 65)) {
+    const chainMove = att.moves.find((mm) => mm.name === move.chain)
+      || MONSTERS[att.key]?.pool?.find((mm) => mm.name === move.chain)
+      || { name: move.chain, power: 70, type: 'beam' };
+    const cd = Math.max(1, Math.round(chainMove.power * (effAtk(att) / effDef(target)) * 0.16 + 2));
+    target.hp = Math.max(0, target.hp - cd);
+    log(`　${move.chain} 立刻跟上！${target.name} -${cd} HP`, 'hit');
   }
 
   // 技能效果
@@ -1796,6 +1891,22 @@ function checkOver() {
   if (state.over) return;
   const P = state.player;
   const E = state.enemy;
+
+  // 哥莫拉·二番战：断尾保命
+  for (const side of [P, E]) {
+    const m = side.team[side.active];
+    if (m.hp > 0 && m.hp / m.maxHp <= 0.25 && m.buffs.secondWind) {
+      m.buffs.secondWind = false;
+      const heal = Math.round(m.maxHp * 0.5);
+      m.hp = Math.min(m.maxHp, m.hp + heal);
+      // 断尾：失去大招
+      const ultIdx = m.moves.findIndex((mv) => mv.type === 'ult');
+      if (ultIdx >= 0) {
+        m.moves[ultIdx] = { ...COMMON.swift, name: '断尾', desc: '尾巴断了，暂时没法用大招' };
+      }
+      log(`${m.name} 断尾求生 —— 恢复 ${heal} HP，失去大招`, 'sys');
+    }
+  }
 
   if (P.team[P.active].hp <= 0) {
     const dead = P.team[P.active];
