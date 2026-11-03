@@ -457,7 +457,7 @@ function freshBuffs() {
     accUp: 0, ultBoost: 0, weaken: 0, regenOnHit: 0, speedUp: 0,
     copyAtk: 0, copyDef: 0, rage: 0, rageHurt: false,
     clone: null, absorb: false, absorbCd: 0, nullify: false, fieldAura: 0, shrink: 0,
-    atkGain: 0, dmgBoost: 0, meleeAcc: 0, firstStrike: false, clashSpent: false, clashUsed: false,
+    atkGain: 0, dmgBoost: 0, meleeAcc: 0, firstStrike: false, clashSpent: false, clashUsed: false, clashSeen: false,
     cooldowns: {}, noRegen: false, forceSlow: false, slowNext: false,
   };
 }
@@ -1021,7 +1021,7 @@ async function playTurn(action) {
   const eOrb = eMove && eMove.orbFirst && eNow.orbReady;
 
   // 对波：双方都出光线，且双方都还没用掉对波机会
-  const clashAllowed = !(pNow.buffs.clashUsed && eNow.buffs.clashUsed);
+  const clashAllowed = !(pNow.buffs.clashSeen && eNow.buffs.clashSeen);
   if (clashAllowed
       && action.kind === 'move' && eAction.kind === 'move'
       && isBeamMove(pMove) && isBeamMove(eMove)
@@ -1149,13 +1149,14 @@ async function resolveClash(P, E, pMove, eMove) {
     }
     render();
     await sleep(350);
-    checkOver();
-    return;
+
   }
 
-  // 进入对波即消耗本场对波机会（每角色一次）
-  pMon.buffs.clashUsed = true;
-  eMon.buffs.clashUsed = true;
+  // 进入对波：记录"参与前"状态，然后标记已参与
+  const pSeenBefore = pMon.buffs.clashSeen;
+  const eSeenBefore = eMon.buffs.clashSeen;
+  pMon.buffs.clashSeen = true;
+  eMon.buffs.clashSeen = true;
 
   const pWin = D1 >= D2;
   const diff1 = Math.abs(D1 - D2);
@@ -1167,7 +1168,7 @@ async function resolveClash(P, E, pMove, eMove) {
   log(`　你 ${D1}　对　敌 ${D2}　差值 ${diff1}`, 'act');
 
   /* 对波机会：每个角色每场只有一次 */
-  const canUseChance = (m) => !m.buffs.clashUsed;
+  const canUseChance = (m) => (m === pMon ? !pSeenBefore : !eSeenBefore);
 
   let totalLoserDmg = diff1;
   let finalLoserIsP = loserIsP;
@@ -1243,7 +1244,8 @@ async function resolveClash(P, E, pMove, eMove) {
 
   /* ---------- 赢家的追加 ---------- */
   let winnerSpend = false;
-  if (winner0.buffs && !winner0.buffs.clashUsed) {
+    const winnerSeenBefore = winner0 === pMon ? pSeenBefore : eSeenBefore;
+    if (!winnerSeenBefore) {
     const canSpend = winner0.ep >= (pWin ? pBaseCost : eBaseCost) && allInBoost === 0;
     if (canSpend) {
       if (!loserIsP) {
