@@ -2184,7 +2184,7 @@ function showTurnBanner(turn) {
   if (!document.body) return;
   const el = document.createElement('div');
   el.className = 'turn-banner';
-  el.textContent = `第 ${turn} 回合`;
+  el.textContent = typeof turn === 'number' ? `第 ${turn} 回合` : String(turn);
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 1100);
 }
@@ -2220,7 +2220,8 @@ function floatText(side, text, cls) {
 }
 
 function showBanner() {
-  // 战斗结束音效待定，暂时不播
+  // 战斗结束：停掉所有还在响的音效
+  stopAllSfx();
   const b = $('#banner');
   b.hidden = false;
   const w = state.winner;
@@ -2455,6 +2456,7 @@ let audioUnlocked = false;
 function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
+  preloadAllSfx();
   // 用一次静音播放解锁音频上下文
   try {
     const a = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=');
@@ -2462,6 +2464,34 @@ function unlockAudio() {
     const p = a.play();
     if (p && p.catch) p.catch(() => {});
   } catch (e) { /* 忽略 */ }
+}
+
+/* 预加载全部音效，避免首次播放延迟 */
+let preloaded = false;
+function preloadAllSfx() {
+  if (preloaded) return;
+  preloaded = true;
+  const all = [
+    ...Object.values(SFX),
+    ...Object.values(SFX_DADA_FACE),
+    ...Object.values(SFX_MISC),
+  ];
+  for (const src of all) {
+    if (!src) continue;
+    try {
+      const a = new Audio(encodeURI(src));
+      a.preload = 'auto';
+      a.load && a.load();
+      audioCache.set(src, a);
+    } catch (e) { /* 忽略 */ }
+  }
+}
+
+/* 停止所有正在播放的音效 */
+function stopAllSfx() {
+  for (const a of audioCache.values()) {
+    try { a.pause(); a.currentTime = 0; } catch (e) { /* 忽略 */ }
+  }
 }
 
 function playSfx(src, volume) {
