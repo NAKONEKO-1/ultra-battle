@@ -1157,10 +1157,6 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
 
   if (move.type === 'stance') {
     log(`${sideName} · ${att.name} 使用 ${move.name}`, 'act');
-  if (move.type === 'ult') {
-    if (att.key === 'ultraman') playSfx(SFX_MISC.spesium, 0.6);
-    else playMonCry(att.key);
-  }
     if (move.orbSet) { att.orbReady = true; log(`　蓄势待发，下一手冲撞先制`, 'ep'); }
     if (move.faces) applyFace(att);
     if (move.accUpMelee) {
@@ -1218,6 +1214,10 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   }
 
   log(`${sideName} · ${att.name} 使用 ${move.name}`, 'act');
+  if (move.type === 'ult') {
+    if (att.key === 'ultraman') playSfx(SFX_MISC.spesium, VOL.ult);
+    else if (att.key !== 'dada') playMonCry(att.key);
+  }
   render();
   await sleep(180);
 
@@ -1508,6 +1508,8 @@ function applyFace(att) {
   else if (r < 0.67) { att.faces = 'B'; att.buffs.counterB = true; }
   else { att.faces = 'C'; att.buffs.guardC = 0.05; }
   log(`　${att.name} 变身 ${att.faces} 面相`, 'ep');
+  const faceSrc = SFX_DADA_FACE[att.faces];
+  if (faceSrc) playSfx(faceSrc, VOL.cry);
 }
 
 function applyFx(target, move, att) {
@@ -1904,7 +1906,7 @@ function render() {
   if (tc) tc.classList.toggle('danger', state.timer <= 3);
   if (state.timer <= 3 && state.timer > 0 && state.lastTimerWarn !== state.timer) {
     state.lastTimerWarn = state.timer;
-    playSfx(SFX_MISC.timer, 0.35);
+    playSfx(SFX_MISC.timer, VOL.timer);
   }
 
   const siteBox = $('#siteBox');
@@ -2174,7 +2176,7 @@ function floatText(side, text, cls) {
 }
 
 function showBanner() {
-  playSfx(SFX_MISC.victory, 0.55);
+  // 战斗结束音效待定，暂时不播
   const b = $('#banner');
   b.hidden = false;
   const w = state.winner;
@@ -2362,30 +2364,44 @@ function startTutorial() {
 
 /* ---------------- 音效 ---------------- */
 const SFX = {
-  /* 怪兽叫声 */
-  bemlar:   'music/百慕拉叫声.mp3',
-  baltan:   'music/巴尔坦星人叫声-1.mp3',
-  baltan2:  'music/巴尔坦星人叫声-2.mp3',
-  neronga:  'music/内隆嘎叫声.mp3',
-  greenmons:'music/绿蒙斯叫声-1.mp3',
-  antlar:   'music/安东拉叫声.mp3',
-  redking:  'music/雷德王叫声.mp3',
-  zarab:    'music/扎拉布星人叫声-1.mp3',
-  jamila:   'music/贾米拉叫声-1.mp3',
-  gomora:   'music/哥莫拉叫声.mp3',
-  mephilas: 'music/美菲拉斯星人叫声-1.mp3',
-  zetton:   'music/杰顿叫声-1.mp3',
-  bullton:  'music/布鲁顿叫声-1.mp3',
-  dada:     'music/达达叫声.mp3',
-  geronimon:'music/杰罗尼蒙叫声-1.mp3',
-  ultraman: 'music/奥特曼叫声-1.mp3',
+  bemlar:    'music/cry/bemular.mp3',
+  baltan:    'music/cry/baltan.mp3',
+  baltan2:   'music/cry/baltan2.mp3',
+  neronga:   'music/cry/neronga.mp3',
+  greenmons: 'music/cry/greenmons.mp3',
+  antlar:    'music/cry/antlar.mp3',
+  redking:   'music/cry/redking.mp3',
+  zarab:     'music/cry/zarab.mp3',
+  jamila:    'music/cry/jamila.mp3',
+  gomora:    'music/cry/gomora.mp3',
+  mephilas:  'music/cry/mephilas.mp3',
+  zetton:    'music/cry/zetton.mp3',
+  bullton:   'music/cry/bullton.mp3',
+  // dada 登场不播音效（dada.mp3 太长，A/B/C 留给变脸）
+  geronimon: 'music/cry/geronimon.mp3',
+  ultraman:  'music/cry/ultraman.mp3',
+};
+
+/* 达达三面变化专用 */
+const SFX_DADA_FACE = {
+  A: 'music/cry/dada_a.mp3',
+  B: 'music/cry/dada_b.mp3',
+  C: 'music/cry/dada_c.mp3',
 };
 
 const SFX_MISC = {
-  spesium:   'music/V.A. - ウルトラマン：スペシウム光線.mp3',
-  henshin:   'music/V.A. - ウルトラマン：変身音.mp3',
-  timer:     'music/计时器闪烁声-1.mp3',
-  victory:   'music/V.A. - 勝利(SEカラータイマー点滅~スペシウム光線~ウルトラマンの声~ウルトラマン飛行) 音频已提取.mp3',
+  spesium: 'music/skill/spesium.mp3',
+  henshin: 'music/skill/henshin.mp3',
+  timer:   'music/ui/timer.mp3',
+  victory: 'music/ui/victory.mp3',
+};
+
+/* 统一音量（每组单独可调） */
+const VOL = {
+  cry: 0.22,
+  ult: 0.32,
+  timer: 0.18,
+  victory: 0.28,
 };
 
 const audioCache = new Map();
@@ -2429,7 +2445,7 @@ function playSfx(src, volume) {
 
 function playMonCry(key) {
   const src = SFX[key];
-  if (src) playSfx(src, 0.45);
+  if (src) playSfx(src, VOL.cry);
 }
 
 function toggleSfx() {
