@@ -1508,3 +1508,19 @@ body.in-battle .state-icon { font-size: 11px; padding: 1px 4px; }
   body.in-battle .timer-ring { width: 52px; height: 52px; }
   body.in-battle .timer-ring b { font-size: 17px; }
 }
+
+
+/* ---------- 音效开关 ---------- */
+.sfx-btn {
+  margin-left: 8px;
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #101a29;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+}
+.sfx-btn:hover { background: #16243a; }
