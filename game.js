@@ -1580,8 +1580,8 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   }
 
   log(`${sideName} · ${att.name} 使用 ${move.name}`, 'act');
-  // 大招音效：只有奥特曼有专属音效
-  if (move.type === 'ult' && att.key === 'ultraman') {
+  // 音效：只有「斯派修姆光线」这一招播斯派修姆音
+  if (move.name === '斯派修姆光线') {
     playSfx(SFX_MISC.spesium, VOL.ult);
   }
   render();
