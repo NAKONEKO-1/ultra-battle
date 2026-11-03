@@ -581,7 +581,6 @@ function startGame(playerKeys, enemyTeamKeys, mode) {
 
   applySiteEffects(siteKey);
   log('战斗开始', 'sys');
-  playMonCry(state.enemy.team[state.enemy.active].key);
   log(`${site.icon} 场地：${site.name}　${site.desc}`, 'sys');
   log(`你：${teamP.map((m) => m.name).join(' / ')}`, 'dim');
   log(`敌：${teamE.map((m) => m.name).join(' / ')}`, 'dim');
@@ -590,6 +589,49 @@ function startGame(playerKeys, enemyTeamKeys, mode) {
   log(`计时器 ${MAX_TIMER} 回合，到点比队伍总血量。`, 'dim');
 
   render();
+  playIntro();
+}
+
+/* 开场动画：角色卡轮流出现 + 战斗开始横幅 */
+function playIntro() {
+  const enemyCard = $('#enemyCard');
+  const playerCard = $('#playerCard');
+  const actions = $('#actions');
+  const optBox = $('#optionBox');
+
+  const hide = (el) => { if (el && el.classList) { el.classList.add('intro-hidden'); el.classList.remove('intro-in'); } };
+  const show = (el) => {
+    if (!el || !el.classList) return;
+    el.classList.remove('intro-hidden');
+    el.classList.add('intro-in');
+  };
+
+  state.busy = true;
+  hide(enemyCard);
+  hide(playerCard);
+  if (actions) { actions.innerHTML = ''; }
+  if (optBox) { optBox.innerHTML = ''; }
+
+  setTimeout(() => {
+    show(enemyCard);
+    if (state) playMonCry(state.enemy.team[state.enemy.active].key);
+  }, 300);
+
+  setTimeout(() => {
+    show(playerCard);
+    if (state) playMonCry(state.player.team[state.player.active].key);
+  }, 1500);
+
+  setTimeout(() => {
+    showTurnBanner('战斗开始');
+  }, 2800);
+
+  setTimeout(() => {
+    if (!state) return;
+    state.busy = false;
+    render();
+    renderActions();
+  }, 3600);
 }
 
 const BASIC_MOVES = [
@@ -1746,6 +1788,7 @@ function checkOver() {
     }
     P.active = next;
     log(`你的 ${P.team[next].name} 上场`, 'act');
+    playMonCry(P.team[next].key);
   }
 
   if (E.team[E.active].hp <= 0) {
@@ -1800,6 +1843,7 @@ function checkOver() {
     }
     E.active = next;
     log(`对手的 ${E.team[next].name} 上场`, 'act');
+    playMonCry(E.team[next].key);
   }
 
   if (state.timer <= 0) {
@@ -1904,7 +1948,7 @@ function render() {
 
   const tc = $('#timerCircle');
   if (tc) tc.classList.toggle('danger', state.timer <= 3);
-  if (state.timer <= 3 && state.timer > 0 && state.lastTimerWarn !== state.timer) {
+  if (!state.over && state.timer <= 3 && state.timer > 0 && state.lastTimerWarn !== state.timer) {
     state.lastTimerWarn = state.timer;
     playSfx(SFX_MISC.timer, VOL.timer);
   }
@@ -2377,7 +2421,7 @@ const SFX = {
   mephilas:  'music/cry/mephilas.mp3',
   zetton:    'music/cry/zetton.mp3',
   bullton:   'music/cry/bullton.mp3',
-  // dada 登场不播音效（dada.mp3 太长，A/B/C 留给变脸）
+  dada:      'music/cry/dada_a.mp3',
   geronimon: 'music/cry/geronimon.mp3',
   ultraman:  'music/cry/ultraman.mp3',
 };
@@ -2390,8 +2434,8 @@ const SFX_DADA_FACE = {
 };
 
 const SFX_MISC = {
-  spesium: 'music/skill/spesium.mp3',
-  henshin: 'music/skill/henshin.mp3',
+  spesium: 'music/skill/spesium_3s.mp3',
+  henshin: 'music/skill/henshin_4s.mp3',
   timer:   'music/ui/timer.mp3',
   victory: 'music/ui/victory.mp3',
 };
@@ -2450,6 +2494,12 @@ function dumpSfxMap() {
 }
 
 function playMonCry(key) {
+  if (key === 'ultraman') {
+    // 奥特曼：先变身音，再叫声
+    playSfx(SFX_MISC.henshin, VOL.cry);
+    setTimeout(() => playSfx(SFX.ultraman, VOL.cry), 1600);
+    return;
+  }
   const src = SFX[key];
   if (src) playSfx(src, VOL.cry);
 }

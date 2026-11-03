@@ -1532,3 +1532,17 @@ body.in-battle .state-icon { font-size: 11px; padding: 1px 4px; }
 .battle .skill-panel { align-content: start; }
 .battle .mon-body { display: flex; flex-direction: column; }
 .battle .mon-bars { margin-top: auto; padding-top: 8px; }
+
+
+/* ---------- 开场动画 ---------- */
+.intro-hidden { opacity: 0; transform: translateY(16px) scale(.97); transition: none; }
+.intro-hidden .mon-body,
+.intro-hidden .mon-left { opacity: 0; }
+
+.mon-card.intro-in { animation: cardIn .55s cubic-bezier(.2,.8,.3,1) forwards; }
+
+@keyframes cardIn {
+  0%   { opacity: 0; transform: translateY(16px) scale(.97); }
+  60%  { opacity: 1; transform: translateY(-3px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
