@@ -63,7 +63,7 @@ const MONSTERS = {
   },
 
   baltan: {
-    id: 'baltan', name: '巴尔坦星人', sub: '宇宙人', type: 'cosmosMan', typeName: '宇宙人',
+    id: 'baltan', name: '巴尔坦星人', sub: '宇宙忍者', type: 'cosmosMan', typeName: '宇宙人',
     hp: 95, atk: 70, def: 55, spd: 85, cost: 8,
     melee: { name: '巨钳攻击', power: 55, ep: 6, desc: '无明显效果' },
     beamM: { name: '赤色冷冻光束', power: 72, ep: 12, fx: 'slow', desc: '造成迟缓：敌方接下来两次行动必定慢于我方' },
@@ -75,7 +75,7 @@ const MONSTERS = {
   },
 
   baltan2: {
-    id: 'baltan2', name: '巴尔坦星人二世', sub: '宇宙人', type: 'cosmosMan', typeName: '宇宙人',
+    id: 'baltan2', name: '巴尔坦星人二世', sub: '宇宙忍者', type: 'cosmosMan', typeName: '宇宙人',
     hp: 105, atk: 82, def: 65, spd: 76, cost: 6,
     melee: { name: '冲刺钳击', power: 60, ep: 7, desc: '无明显效果' },
     beamM: { name: '重力风暴', power: 75, ep: 11, drain: 6, fx: 'noMelee2', desc: '造成击退：敌方无法使用格斗技能两回合' },
@@ -87,7 +87,7 @@ const MONSTERS = {
   },
 
   neronga: {
-    id: 'neronga', name: '内隆嘎', sub: '地底怪兽', type: 'earthMonster', typeName: '地球怪兽',
+    id: 'neronga', name: '内隆嘎', sub: '透明怪兽', type: 'earthMonster', typeName: '地球怪兽',
     hp: 122, atk: 84, def: 70, spd: 55, cost: 6,
     melee: { name: '舍身冲撞', power: 58, ep: 6, desc: '无明显效果' },
     beamM: { name: '高压电击', power: 62, ep: 12, drain: 6, desc: '无明显效果' },
@@ -111,7 +111,7 @@ const MONSTERS = {
   },
 
   greenmons: {
-    id: 'greenmons', name: '绿蒙斯', sub: '植物怪兽', type: 'earthMonster', typeName: '地球怪兽',
+    id: 'greenmons', name: '绿蒙斯', sub: '巨大植物', type: 'earthMonster', typeName: '地球怪兽',
     hp: 105, atk: 72, def: 58, spd: 65, cost: 5,
     melee: { name: '巨叶重击', power: 52, ep: 6, desc: '无明显效果' },
     beamM: { name: '雾状麻醉液', power: 58, ep: 12, drain: 8, fx: 'stun', desc: '造成眩晕：接下来一回合无法行动' },
@@ -135,7 +135,7 @@ const MONSTERS = {
   },
 
   redking: {
-    id: 'redking', name: '雷德王', sub: '怪兽', type: 'earthMonster', typeName: '地球怪兽',
+    id: 'redking', name: '雷德王', sub: '骷髅怪兽', type: 'earthMonster', typeName: '地球怪兽',
     hp: 140, atk: 105, def: 75, spd: 40, cost: 8,
     melee: { name: '铁拳', power: 70, ep: 8, desc: '无明显效果' },
     beamM: { name: '投石', power: 55, ep: 14, combo: 75, desc: '无明显效果' },
@@ -147,7 +147,7 @@ const MONSTERS = {
   },
 
   zarab: {
-    id: 'zarab', name: '扎拉布星人', sub: '宇宙人', type: 'cosmosMan', typeName: '宇宙人',
+    id: 'zarab', name: '扎拉布星人', sub: '凶恶宇宙人', type: 'cosmosMan', typeName: '宇宙人',
     hp: 100, atk: 78, def: 60, spd: 75, cost: 7,
     melee: { name: '肘击', power: 56, ep: 6, desc: '无明显效果' },
     beamM: { name: '高频波', power: 64, ep: 12, drain: 6, desc: '无明显效果' },
@@ -159,7 +159,7 @@ const MONSTERS = {
   },
 
   jamila: {
-    id: 'jamila', name: '贾米拉', sub: '宇宙怪兽', type: 'cosmosBeast', typeName: '宇宙怪兽',
+    id: 'jamila', name: '贾米拉', sub: '栖星怪兽', type: 'cosmosBeast', typeName: '宇宙怪兽',
     hp: 115, atk: 85, def: 65, spd: 60, cost: 6,
     melee: { name: '重击', power: 62, ep: 7, desc: '无明显效果' },
     beamM: { name: '火焰喷射', power: 68, ep: 12, flameChance: 65, desc: '无明显效果' },
@@ -183,7 +183,7 @@ const MONSTERS = {
   },
 
   mephilas: {
-    id: 'mephilas', name: '美菲拉斯星人', sub: '宇宙人', type: 'cosmosMan', typeName: '宇宙人',
+    id: 'mephilas', name: '美菲拉斯星人', sub: '恶劣宇宙人', type: 'cosmosMan', typeName: '宇宙人',
     hp: 120, atk: 92, def: 68, spd: 70, cost: 8,
     melee: { name: '抓投', power: 64, ep: 7, vsCosmos: 15, desc: '无明显效果' },
     beamM: { name: '简易抓握光线', power: 68, ep: 12, drain: 8, clashBonus: 6, desc: '无明显效果' },
