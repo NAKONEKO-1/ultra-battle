@@ -13,7 +13,7 @@
 const MAX_TIMER = 24;
 const TEAM_COST = 20;
 const EP_MAX = 100;
-const EP_START = 60;
+const EP_START = 30;
 const EP_REGEN = 8;
 const MAX_SWITCH = 3;
 const BREAK = 1.6;
@@ -107,7 +107,7 @@ const MONSTERS = {
     counterB: { name: '粘液护体', dodge: 35, guard: 0.22, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '原子爆炸', power: 350, ep: 60, acc: 100, selfDestruct: true, twoPhase: true, oncePerBattle: true, desc: 'EP≥60：350 伤害，保留 1 HP，无视闪避，减伤 10%；EP<60：消耗全部 EP，威力降为 175，可闪避，减伤 20%，不保留 HP' },
     field: { name: '原始恐怖', ep: 10, kind: 'typeBoost', types: ['earthMonster'], value: 10, turns: 2, desc: '全体地球怪兽伤害 +10%，2 回合' },
-    passive: { name: '自毁', kind: 'bombDiscount', value: 3, desc: 'HP ≤ 30% 时，原子爆炸 EP 5 → 2' },
+    passive: { name: '自毁', kind: 'bombDiscount', value: 30, desc: 'HP ≤ 30% 时，原子爆炸 EP 60 → 30' },
   },
 
   greenmons: {
@@ -148,7 +148,7 @@ const MONSTERS = {
 
   zarab: {
     id: 'zarab', name: '扎拉布星人', sub: '凶恶宇宙人', type: 'cosmosMan', typeName: '宇宙人',
-    hp: 100, atk: 78, def: 60, spd: 75, cost: 7,
+    hp: 100, atk: 78, def: 60, spd: 75, cost: 6,
     melee: { name: '肘击', power: 56, ep: 6, desc: '无明显效果' },
     beamM: { name: '高频波', power: 64, ep: 12, drain: 6, desc: '无明显效果' },
     counterA: { name: '隐身', dodge: 45, ep: 5, vs: 'beam', desc: '无明显效果' },
@@ -203,7 +203,7 @@ const MONSTERS = {
     counterB: { name: '瞬间移动', dodge: 42, guard: 0.4, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '杰顿终极光线', power: 300, ep: 32, acc: 80, ultType: 'beam', desc: '无明显效果' },
     field: { name: '最终侵略兵器', ep: 17, kind: 'statBoost', value: 25, turns: 3, desc: '全属性 +25%，3 回合' },
-    passive: { name: '光线吸收', kind: 'absorbJudge', threshold: 30, desc: '受光线伤害 <30 反击满威力，≥30 反击减半并冷却 2 回合' },
+    passive: { name: '光线吸收', kind: 'absorbJudge', threshold: 45, desc: '受光线伤害 <45 反击满威力，≥45 反击减半并冷却 2 回合' },
   },
 
   bullton: {
@@ -331,6 +331,10 @@ const BONDS = [
     id: 'dimension', name: '四次元来的挑战', members: ['bullton'],
     need: 1, takeLess: 15, desc: '受到生物/地底伤害 -15%',
   },
+  {
+    id: 'humanShield', name: '人类的后盾', members: ['ultraman', 'vtol', 'vtolSmall'],
+    need: 3, squadDmg: 15, ultraAll: 10, desc: '战队伤害 +15%，奥特曼全属性 +10%',
+  },
 ];
 
 /* ---------------- 立绘 ---------------- */
@@ -453,7 +457,7 @@ function freshBuffs() {
     accUp: 0, ultBoost: 0, weaken: 0, regenOnHit: 0, speedUp: 0,
     copyAtk: 0, copyDef: 0, rage: 0, rageHurt: false,
     clone: null, absorb: false, absorbCd: 0, nullify: false, fieldAura: 0, shrink: 0,
-    atkGain: 0, dmgBoost: 0, meleeAcc: 0, firstStrike: false,
+    atkGain: 0, dmgBoost: 0, meleeAcc: 0, firstStrike: false, clashSpent: false,
   };
 }
 
@@ -541,18 +545,24 @@ function applyBonds(team) {
     const hit = b.members.filter((k) => keys.includes(k)).length;
     if (hit >= b.need) active.push(b);
   }
-  let allPct = 0, defPct = 0;
+  let allPct = 0, defPct = 0, squadDmg = 0, ultraAll = 0;
   for (const b of active) {
     allPct += b.all || 0;
     defPct += b.def || 0;
+    squadDmg += b.squadDmg || 0;
+    ultraAll += b.ultraAll || 0;
   }
-  const mul = 1 + allPct / 100;
   for (const m of team) {
+    let mul = 1 + allPct / 100;
+    // 人类的后盾：奥特曼全属性 +10%
+    if (ultraAll && m.type === 'ultra') mul += ultraAll / 100;
     m.maxHp = Math.round(m.maxHp * mul);
     m.hp = Math.round(m.hp * mul);
     m.atk = Math.round(m.atk * mul);
-    m.def = Math.round(m.def * (1 + (allPct + defPct) / 100));
+    m.def = Math.round(m.def * (mul + defPct / 100));
     m.spd = Math.round(m.spd * mul);
+    // 人类的后盾：战队伤害 +15%
+    if (squadDmg && m.type === 'squad') m.buffs.dmgBoost = squadDmg;
   }
   return active;
 }
@@ -1055,8 +1065,10 @@ async function resolveClash(P, E, pMove, eMove) {
 
   log('双方同时放出光线 —— 对波！', 'sys');
 
-  pMon.ep = Math.max(0, pMon.ep - (pMove.ep || 0));
-  eMon.ep = Math.max(0, eMon.ep - (eMove.ep || 0));
+  const pBaseCost = pMove.ep || 0;
+  const eBaseCost = eMove.ep || 0;
+  pMon.ep = Math.max(0, pMon.ep - pBaseCost);
+  eMon.ep = Math.max(0, eMon.ep - eBaseCost);
 
   const pRes = rollHit(pMon, eMon, pMove, eMove);
   const eRes = rollHit(eMon, pMon, eMove, pMove);
@@ -1068,15 +1080,17 @@ async function resolveClash(P, E, pMove, eMove) {
 
   log(`　你 ${D1}　对　敌 ${D2}　差值 ${diff}`, 'act');
 
-  const playerCost = pMove.ep || 0;
-  const pCanSpend = pMon.ep >= playerCost;
-  const eCost = eMove.ep || 0;
-  const eCanSpend = eMon.ep >= eCost;
+  // 规则3：每角色每场只能追加一次 EP
+  const pCanSpend = pMon.ep >= pBaseCost && !pMon.buffs.clashSpent;
+  const eCanSpend = eMon.ep >= eBaseCost && !eMon.buffs.clashSpent;
 
   let pSpend = false;
   if (pCanSpend) {
-    pSpend = await askClash(diff, pWin, playerCost);
-    if (pSpend) pMon.ep = Math.max(0, pMon.ep - playerCost);
+    pSpend = await askClash(diff, pWin, pBaseCost);
+    if (pSpend) {
+      pMon.ep = Math.max(0, pMon.ep - pBaseCost);
+      pMon.buffs.clashSpent = true;
+    }
   }
 
   let eSpend = false;
@@ -1084,29 +1098,31 @@ async function resolveClash(P, E, pMove, eMove) {
     const worth = diff >= Math.max(15, Math.round(winnerDmg * 0.35));
     const r = rnd();
     eSpend = worth ? r < 0.75 : r < 0.25;
-    if (eSpend) eMon.ep = Math.max(0, eMon.ep - eCost);
+    if (eSpend) {
+      eMon.ep = Math.max(0, eMon.ep - eBaseCost);
+      eMon.buffs.clashSpent = true;
+    }
   }
 
   const loserSpend = pWin ? eSpend : pSpend;
   const winnerSpend = pWin ? pSpend : eSpend;
 
   let loserDmg = 0;
-  let winnerDmg2 = 0;
   let tag = '';
   let newLoserSide = pWin ? 'e' : 'p';
 
   if (!loserSpend && !winnerSpend) {
-    loserDmg = diff;
-    tag = '差值全吃';
+    // 规则4：双方都没追加，差值伤害不能致命
+    const loserHpNow = (pWin ? eMon : pMon).hp;
+    loserDmg = Math.min(diff, Math.max(0, loserHpNow - 1));
+    tag = '差值全吃（不致命）';
   } else if (!loserSpend && winnerSpend) {
     loserDmg = winnerDmg + diff;
     tag = '赢家追加，原伤害 + 差值';
   } else {
-    // 输家追加 / 都追加：第二次判定（双方伤害各叠加两次）
-    const D1n = D1 * 2;
-    const D2n = D2 * 2;
-    const newDiff = Math.abs(D1n - D2n);
-    const newPWin = D1n >= D2n;
+    // 输家追加 / 都追加：第二次判定（双方伤害各叠加两次），这次不能再追加
+    const newDiff = Math.abs(D1 * 2 - D2 * 2);
+    const newPWin = D1 * 2 >= D2 * 2;
     newLoserSide = newPWin ? 'e' : 'p';
     loserDmg = diff + newDiff;
     tag = newPWin === pWin
@@ -1120,11 +1136,17 @@ async function resolveClash(P, E, pMove, eMove) {
   loserMon.hp = Math.max(0, loserMon.hp - loserDmg);
   log(`　${loserMon.name} 吃下 ${loserDmg} 伤害（${tag}）`, 'hit');
   flash(newLoserSide === 'e' ? 'enemy' : 'player');
+  floatText(newLoserSide === 'e' ? 'enemy' : 'player', '-' + loserDmg, 'dmg');
 
-  if (winnerDmg2 > 0) {
-    winnerMon.hp = Math.max(0, winnerMon.hp - winnerDmg2);
-    log(`　${winnerMon.name} 被反弹 ${winnerDmg2} 伤害`, 'hit');
-    flash(newLoserSide === 'p' ? 'player' : 'enemy');
+  // 规则2：对波赢家恢复本次消耗（技能+追加）的一半
+  const winnerIsP = newLoserSide === 'e';
+  const winnerBase = winnerIsP ? pBaseCost : eBaseCost;
+  const winnerDidSpend = winnerIsP ? pSpend : eSpend;
+  const spentTotal = winnerBase + (winnerDidSpend ? winnerBase : 0);
+  const refund = Math.floor(spentTotal / 2);
+  if (refund > 0) {
+    winnerMon.ep = clamp(winnerMon.ep + refund, 0, EP_MAX);
+    log(`　${winnerMon.name} 对波胜出，回复 ${refund} EP`, 'ep');
   }
 
   if (pMove.orbFirst) pMon.orbReady = false;
