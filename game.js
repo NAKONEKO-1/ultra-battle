@@ -2291,30 +2291,22 @@ function renderDex() {
   grid.innerHTML = DEX_ORDER.map((key) => {
     const d = MONSTERS[key];
     if (!d) return '';
-    const moves = d.pool ? d.pool : monPool(key);
     return `
       <div class="pick-card dex-card" data-dex="${key}">
+        <span class="pick-cost">${d.cost || '—'}</span>
         <div class="pick-sprite">${sprite(key)}</div>
-        <div class="pick-row">
-          <span class="pick-name">${d.name}</span>
-          <span class="pick-cost">${d.cost || '—'}</span>
-        </div>
-        <div class="pick-sub">${d.sub} · ${d.typeName}${d.overlord ? ' · 豪强' : ''}</div>
-        <div class="pick-stats">HP ${d.hp} · 攻 ${d.atk} · 防 ${d.def} · 速 ${d.spd}</div>
-        <div class="dex-open">查看详情</div>
-        <div class="dex-detail" hidden>
-          <div class="dex-sec"><b>被动</b> ${d.passive ? d.passive.name + '：' + d.passive.desc : '无'}</div>
-          <div class="dex-sec"><b>技能</b><ul class="dex-list">${moves.map(skillLine).join('')}</ul></div>
+        <div class="pick-bottom">
+          <div class="pick-row">
+            <span class="pick-name">${d.name}</span>
+          </div>
+          <div class="pick-sub">${d.sub}</div>
+          <div class="pick-tag">${d.overlord ? '豪强 · ' : ''}${d.typeName}</div>
         </div>
       </div>`;
   }).join('');
 
   grid.querySelectorAll('.dex-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      const d = card.querySelector('.dex-detail');
-      if (!d) return;
-      d.hidden = !d.hidden;
-    });
+    card.addEventListener('click', () => openDetail(card.dataset.dex, true));
   });
 }
 
@@ -2571,7 +2563,7 @@ function toggleSfx() {
 /* ---------------- 角色详情弹层 ---------------- */
 let detailKey = null;
 
-function openDetail(key) {
+function openDetail(key, readOnly) {
   const d = MONSTERS[key];
   if (!d) return;
   detailKey = key;
@@ -2634,9 +2626,7 @@ function openDetail(key) {
         <div class="ds-title">技能　<span class="ds-count"></span></div>
         <div class="ds-grid">${allSkill.map(skillCard).join('')}</div>
       </div>
-      <div class="detail-actions">
-        <button class="da-pick" type="button"></button>
-      </div>
+      ${readOnly ? '' : '<div class="detail-actions"><button class="da-pick" type="button"></button></div>'}
     </div>`;
 
   document.body.appendChild(overlay);
@@ -2673,8 +2663,15 @@ function openDetail(key) {
 
   syncSkills();
 
-  /* 选入 / 移出 */
+  /* 选入 / 移出（图鉴只读时没有这个按钮） */
   const pickBtn = overlay.querySelector('.da-pick');
+  if (!pickBtn) {
+    overlay.querySelector('.detail-close').addEventListener('click', closeDetail);
+    overlay.addEventListener('click', (ev) => {
+      if (ev.target === overlay) closeDetail();
+    });
+    return;
+  }
   const updatePickBtn = () => {
     const on = selected.includes(key);
     pickBtn.textContent = on ? '移出队伍' : '选入队伍';
