@@ -488,6 +488,24 @@ function defaultLoadout(key) {
   return [key + ':melee', key + ':beam', key + ':cA', key + ':ult'];
 }
 
+/* 角色离场时清理临时状态 */
+function clearTempState(m) {
+  if (!m) return;
+  m.orbReady = false;
+  m.counterBonus = 0;
+  m.passiveBonus = 1;
+  if (m.buffs) {
+    m.buffs.nullify = false;
+    m.buffs.dmgBoost = 0;
+    m.buffs.meleeAcc = 0;
+    m.buffs.firstStrike = false;
+    m.buffs.noRegen = false;
+    m.buffs.forceSlow = false;
+    m.buffs.slowNext = false;
+    m.buffs.secondWind = false;
+  }
+}
+
 function makeMon(key) {
   const d = MONSTERS[key];
   const ids = loadout[key] || defaultLoadout(key);
@@ -966,6 +984,8 @@ async function playTurn(action) {
       renderActions();
       return;
     }
+    // 换人时清理下场角色的临时状态（避免被误认为继承）
+    clearTempState(oldMon);
     P.switches--;
     P.active = action.next;
     if (oldMon.passive?.kind === 'switchBoost') {
@@ -2101,6 +2121,7 @@ function checkOver() {
       state.over = true; state.winner = 'enemy';
       log('你的三只全倒了。', 'sys'); showBanner(); return;
     }
+    clearTempState(P.team[P.active]);
     P.active = next;
     log(`你的 ${P.team[next].name} 上场`, 'act');
     playMonCry(P.team[next].key);
@@ -2156,6 +2177,7 @@ function checkOver() {
       }
       showBanner(); return;
     }
+    clearTempState(E.team[E.active]);
     E.active = next;
     log(`对手的 ${E.team[next].name} 上场`, 'act');
     playMonCry(E.team[next].key);
