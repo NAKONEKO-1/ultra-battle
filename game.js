@@ -638,7 +638,7 @@ function startGame(playerKeys, enemyTeamKeys, mode) {
     player: { team: teamP, active: 0, switches: MAX_SWITCH, bonds: bondsP },
     enemy: { team: teamE, active: 0, switches: MAX_SWITCH, bonds: bondsE },
     mode: gameMode, stage: 1, turn: 1, timer: MAX_TIMER, busy: false, over: false, winner: null,
-    log: [], field: null, warp: null,
+    log: [], fields: [], warp: null,
     playerHistory: [], enemyHistory: [],
     pendingSwitch: null,
   };
@@ -733,6 +733,35 @@ function startClone(m) {
   m.moves = BASIC_MOVES.map((x) => ({ ...x }));
 }
 
+/* ---------------- 领域（双方独立） ---------------- */
+function setField(S, f) {
+  state.fields = state.fields.filter((x) => x.owner !== S);
+  f.owner = S;
+  state.fields.push(f);
+}
+
+function getField(S) {
+  return state.fields.find((f) => f.owner === S) || null;
+}
+
+function someField(fn) {
+  return state.fields.some(fn);
+}
+
+function removeField(field) {
+  state.fields = state.fields.filter((f) => f !== field);
+}
+
+function fieldOwnerSide(field) {
+  return field ? field.owner : null;
+}
+
+/* 角色属于哪一方 */
+function attSideOwner(att) {
+  if (!state) return null;
+  return state.player.team.includes(att) ? state.player : state.enemy;
+}
+
 function applySiteEffects(siteKey) {
   for (const S of [state.player, state.enemy]) {
     for (const m of S.team) {
@@ -796,7 +825,7 @@ function rollHit(att, def, move, defMove) {
   let note = '';
 
   // 必中（布鲁顿领域）
-  const alwaysHit = state && state.field && state.field.kind === 'alwaysHit';
+  const alwaysHit = state && someField((f) => f.kind === 'alwaysHit');
 
   if (move.type === 'beam' && db.nullify) {
     return { dmg: 0, kind: 'nullify', note: '反射板无效化' };
@@ -863,7 +892,7 @@ function rollHit(att, def, move, defMove) {
   // 美菲拉斯·恶魔游戏：我方被闪避 → 扭转必中
   const attSide = state.player.team.includes(att) ? state.player : state.enemy;
   const defSideRef = state.player.team.includes(def) ? state.player : state.enemy;
-  if (state.field?.kind === 'twist' && state.field.owner === attSide && dodge > 0) {
+  if (getField(attSide)?.kind === 'twist' && dodge > 0) {
     dodge = 0;
     note = '游戏扭转（必中）';
   }
@@ -871,12 +900,12 @@ function rollHit(att, def, move, defMove) {
   if (defMove.chargeDodge && def.status.charge > 0) {
     dodge = Math.min(95, dodge + def.status.charge * defMove.chargeDodge);
   }
-  if (def.buffs.fieldAura && state.field && state.field.name === '沙漠化') {
+  if (def.buffs.fieldAura && someField((f) => f.name === '沙漠化')) {
     dodge = Math.min(95, dodge + def.buffs.fieldAura);
   }
   const defSide = state.player.team.includes(def) ? state.player : state.enemy;
   const antlar = defSide.team[defSide.active];
-  if (antlar?.passive?.kind === 'fieldDodge' && state.field?.name === '沙漠化') {
+  if (antlar?.passive?.kind === 'fieldDodge' && someField((f) => f.name === '沙漠化')) {
     dodge = Math.min(95, dodge + antlar.passive.value);
   }
 
@@ -915,9 +944,9 @@ function rollHit(att, def, move, defMove) {
   }
   if (fieldBoost(att, move)) dmg *= 1 + fieldBoost(att, move) / 100;
   // 贾米拉：我的故乡是地球
-  if (state.field?.kind === 'dmgPerm' && state.field.owner === attSide) dmg *= 1.1;
+  if (getField(attSide)?.kind === 'dmgPerm') dmg *= 1.1;
   // 美菲拉斯：被破姿态时伤害减半
-  if (state.field?.kind === 'twist' && state.field.owner === defSideRef && mult === BREAK) {
+  if (getField(defSideRef)?.kind === 'twist' && mult === BREAK) {
     dmg *= 0.5;
   }
   if (ab.ultBoost && move.type === 'ult') dmg *= 1 + ab.ultBoost / 100;
@@ -959,7 +988,7 @@ function rollHit(att, def, move, defMove) {
 }
 
 function fieldBoost(att, move) {
-  const f = state.field;
+  const f = getField(attSideOwner(att));
   if (!f) return 0;
   if (f.kind === 'cosmosBoost' && (att.type === 'cosmosMan' || att.type === 'cosmosBeast')) return f.value;
   if (f.kind === 'beamBoost' && move.type === 'beam') return f.value;
@@ -1009,7 +1038,7 @@ async function playTurn(action) {
       log(`　${oldMon.name} 解除拟态，变回本体`, 'sys');
     }
     // 达达·人类标本：被缩小化的目标无法主动退场
-    if (state.field?.kind === 'shrinkLock' && state.field.owner === E && oldMon.buffs.shrink > 0) {
+    if (getField(E)?.kind === 'shrinkLock' && oldMon.buffs.shrink > 0) {
       log('缩小化锁定，你无法换下这只', 'dim');
       state.busy = false;
       state.pendingSwitch = null;
@@ -1094,8 +1123,8 @@ async function playTurn(action) {
     else if (eOrb && !pOrb) pFirst = false;
     else if (pNow.buffs.firstStrike) pFirst = true;
     else if (eNow.buffs.firstStrike) pFirst = false;
-    else if (state.field?.kind === 'firstStrike' && state.field.owner === P) pFirst = true;
-    else if (state.field?.kind === 'firstStrike' && state.field.owner === E) pFirst = false;
+    else if (getField(P)?.kind === 'firstStrike') pFirst = true;
+    else if (getField(E)?.kind === 'firstStrike') pFirst = false;
     else if (pNow.buffs.slowNext || pNow.status.slow > 0) { pFirst = false; pNow.buffs.slowNext = false; }
     else if (eNow.buffs.slowNext || eNow.status.slow > 0) { pFirst = true; eNow.buffs.slowNext = false; }
     else if (action.kind === 'switch' && pFastSwitch) pFirst = false;
@@ -1445,8 +1474,8 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   }
 
   // 安东拉：砂尘暴自动展开沙漠化
-  if (move.autoField && (!state.field || state.field.name !== move.autoField)) {
-    state.field = { name: '沙漠化', kind: 'dodgeBoost', value: 15, turns: 3, owner: S, charges: 0, drained: null };
+  if (move.autoField && !someField((f) => f.name === move.autoField)) {
+    setField(S, { name: '沙漠化', kind: 'dodgeBoost', value: 15, turns: 3, owner: S, charges: 0, drained: null });
     log('　自动展开沙漠化', 'sys');
   }
 
@@ -1539,7 +1568,7 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
       for (const mm of S.team) mm.buffs.statMul = move.value;
       log(`　我方全队全属性 +${move.value}%`, 'ep');
     }
-    state.field = f;
+    setField(S, f);
     log(`${sideName} · ${att.name} 展开 ${move.name}`, 'sys');
     log(`　${move.desc}`, 'dim');
     render();
@@ -1761,14 +1790,14 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   }
 
   // 内隆嘎·吸电力场：命中蓄力
-  if (state.field?.kind === 'chargeField' && state.field.owner === S) {
+  if (getField(S)?.kind === 'chargeField') {
     const neronga = S.team.find((mm) => mm.key === 'neronga');
     if (neronga) {
       neronga.status.charge = (neronga.status.charge || 0) + 1;
     }
-    state.field.charges = neronga ? neronga.status.charge : state.field.charges + 1;
-    if (state.field.charges >= 3) {
-      state.field.charges = 0;
+    cf.charges = neronga ? neronga.status.charge : cf.charges + 1;
+    if (cf.charges >= 3) {
+      cf.charges = 0;
       if (neronga) neronga.status.charge = 0;
       if (neronga) {
         const foe = T.team[T.active];
@@ -1778,7 +1807,7 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
         flash(T === state.player ? 'player' : 'enemy');
       }
     } else {
-      log(`　吸电力场蓄力 ${state.field.charges}/3`, 'ep');
+      log(`　吸电力场蓄力 ${cf.charges}/3`, 'ep');
     }
   }
 
@@ -2024,51 +2053,51 @@ function endOfTurn() {
     m.buffs.firstStrike = false;
   }
 
-  if (state.field) {
+  for (const field of state.fields.slice()) {
     // 永久领域不递减
-    if (state.field.kind !== 'dmgPerm' && state.field.kind !== 'chargeField' && state.field.kind !== 'extraRevive') {
-      state.field.turns--;
+    if (field.kind !== 'dmgPerm' && field.kind !== 'chargeField' && field.kind !== 'extraRevive') {
+      field.turns--;
     }
-    if (state.field.kind === 'poisonAll') {
+    if (field.kind === 'poisonAll') {
       for (const S of [P, E]) {
         const m = S.team[S.active];
         if (m.hp > 0) m.hp = Math.max(0, m.hp - 2);
       }
     }
     // 绿蒙斯：敌方中毒、我方恩泽
-    if (state.field.kind === 'poisonField') {
-      const owner = state.field.owner;
+    if (field.kind === 'poisonField') {
+const owner = field.owner;
       const foeSide = owner === P ? E : P;
       const foe = foeSide.team[foeSide.active];
       if (foe && foe.hp > 0) {
-        foe.hp = Math.max(0, foe.hp - state.field.value);
-        log(`${foe.name} 中毒 -${state.field.value} HP`, 'dim');
+        foe.hp = Math.max(0, foe.hp - field.value);
+        log(`${foe.name} 中毒 -${field.value} HP`, 'dim');
       }
       const mine = owner.team[owner.active];
       if (mine && mine.hp > 0) {
-        mine.hp = Math.min(mine.maxHp, mine.hp + state.field.heal);
-        log(`${mine.name} 恩泽 +${state.field.heal} HP`, 'ep');
+        mine.hp = Math.min(mine.maxHp, mine.hp + field.heal);
+        log(`${mine.name} 恩泽 +${field.heal} HP`, 'ep');
       }
     }
-    if (state.field.turns <= 0 && state.field.kind !== 'dmgPerm' && state.field.kind !== 'chargeField') {
+    if (field.turns <= 0 && field.kind !== 'dmgPerm' && field.kind !== 'chargeField') {
       // 扎拉布：归还吸取的攻防
-      if (state.field.kind === 'drainStats' && state.field.drained) {
-        for (const d of state.field.drained) {
+      if (field.kind === 'drainStats' && field.drained) {
+        for (const d of field.drained) {
           d.mon.atk += d.atk;
           d.mon.def += d.def;
         }
-        const owner = state.field.owner;
+const owner = field.owner;
         const caster = owner.team.find((m) => m.key === 'zarab');
         if (caster) {
-          caster.atk -= state.field.drained.reduce((a, d) => a + d.atk, 0);
-          caster.def -= state.field.drained.reduce((a, d) => a + d.def, 0);
+          caster.atk -= field.drained.reduce((a, d) => a + d.atk, 0);
+          caster.def -= field.drained.reduce((a, d) => a + d.def, 0);
         }
       }
-      if (state.field.kind === 'statBoost') {
+      if (field.kind === 'statBoost') {
         for (const side of [P, E]) for (const mm of side.team) mm.buffs.statMul = 0;
       }
-      log(`${state.field.name} 消散了`, 'dim');
-      state.field = null;
+      log(`${field.name} 消散了`, 'dim');
+      removeField(field);
     }
   }
 
@@ -2144,8 +2173,8 @@ function checkOver() {
         }
       }
     }
-    if (dead.key === 'jamila' && state.field?.kind === 'dmgPerm' && state.field.owner === P) {
-      state.field = null;
+    if (dead.key === 'jamila' && getField(P)?.kind === 'dmgPerm') {
+      removeField(field);
       log('我的故乡是地球 结束', 'dim');
     }
     triggerOnDeath(dead, E.team[E.active]);
@@ -2187,8 +2216,8 @@ function checkOver() {
         }
       }
     }
-    if (dead.key === 'jamila' && state.field?.kind === 'dmgPerm' && state.field.owner === E) {
-      state.field = null;
+    if (dead.key === 'jamila' && getField(E)?.kind === 'dmgPerm') {
+      removeField(field);
     }
     triggerOnDeath(dead, P.team[P.active]);
     const next = E.team.findIndex((m) => m.hp > 0);
@@ -2286,7 +2315,7 @@ function aiChoose(S, foeS, history) {
 
   // 5. 领域：没领域且 EP 充裕
   const field = me.moves.find((m) => m.type === 'field' && me.ep >= m.ep);
-  if (field && !state.field && rnd() < 0.3) return { kind: 'move', move: field };
+  if (field && !someField((f) => f.owner === S) && rnd() < 0.3) return { kind: 'move', move: field };
 
   // 6. 挑期望伤害最高的招（类型克制 + 威力）
   let best = null;
@@ -2328,10 +2357,12 @@ function render() {
 
   const fieldBox = $('#fieldBox');
   if (fieldBox) {
-    if (state.field) {
+    if (state.fields.length) {
       fieldBox.hidden = false;
-      fieldBox.textContent = `${state.field.name}（剩 ${state.field.turns}）`;
-    } else fieldBox.hidden = true;
+      fieldBox.textContent = state.fields.map((f) => `${f.name}（剩 ${f.turns}）`).join(' · ');
+    } else {
+      fieldBox.hidden = true;
+    }
   }
 
   paintSide('enemy', state.enemy);
