@@ -1108,6 +1108,15 @@ function recordHistory(arr, action) {
 /* ---------------- 对波 ---------------- */
 const isBeamMove = (m) => m && (m.type === 'beam' || (m.type === 'ult' && m.ultType === 'beam'));
 
+/* 估算全力能否翻盘：自己伤害 ×(1 + EP/100) 是否超过对方 */
+function allinDmgEstimate(loser, winnerDmg, diff) {
+  const ep = loser.ep || 0;
+  if (ep < 20) return false;
+  const boost = 1 + ep / 100;
+  const myDmg = loser._lastClashDmg || (winnerDmg - diff);
+  return myDmg * boost > winnerDmg;
+}
+
 async function resolveClash(P, E, pMove, eMove) {
   const pMon = P.team[P.active];
   const eMon = E.team[E.active];
@@ -1178,9 +1187,20 @@ async function resolveClash(P, E, pMove, eMove) {
         spend: false,
       });
     } else {
-      // AI 决策
+      // AI 决策：先看能不能活，再算划不划算
       const hpPctNow = loser0.hp / loser0.maxHp;
       const lethal = diff1 >= loser0.hp;
+      const allInEdge = allinDmgEstimate(loser0, winnerDmg1, diff1);
+      if (canEmergency && (lethal || hpPctNow < 0.35)) {
+        loserChoice = rnd() < 0.7 ? 'emergency' : 'tank';
+      } else if (canAllIn && allInEdge) {
+        // 全力能翻盘，或者不拼就必死
+        loserChoice = lethal ? 'allin' : (rnd() < 0.45 ? 'allin' : 'tank');
+      } else if (canAllIn && lethal && rnd() < 0.5) {
+        loserChoice = 'allin';
+      } else {
+        loserChoice = 'tank';
+      }
       if (canEmergency && (lethal || hpPctNow < 0.35)) {
         loserChoice = rnd() < 0.7 ? 'emergency' : 'tank';
       } else if (canAllIn && lethal && rnd() < 0.35) {
@@ -1196,17 +1216,19 @@ async function resolveClash(P, E, pMove, eMove) {
 
   if (loserChoice === 'emergency') {
     const cm = (loser0.moves || []).find((m) => m.type === 'stance' && m.vs === 'beam');
-    if (cm && loser0.ep >= (cm.ep || 0)) {
-      loser0.ep = Math.max(0, loser0.ep - (cm.ep || 0));
+    const emgCost = (cm?.ep || 5) * 2;
+    if (cm && loser0.ep >= emgCost) {
+      loser0.ep = Math.max(0, loser0.ep - emgCost);
       loser0.buffs.clashUsed = true;
       const dodge = cm.dodge || 50;
+      const baseDmg = diff1;
+      const reduceAmt = Math.round(winnerDmg1 / 2);
       if (rnd() * 100 < dodge) {
-        totalLoserDmg = Math.round(diff1 / 2);
-        tags.push(`应急 ${cm.name} 闪避成功，伤害减半`);
+        totalLoserDmg = Math.max(0, baseDmg - reduceAmt);
+        tags.push(`应急 ${cm.name} 成功，减免 ${reduceAmt}（-${emgCost} EP）`);
       } else {
-        const guard = cm.guard || 0.12;
-        totalLoserDmg = Math.round(diff1 * (1 - guard));
-        tags.push(`应急 ${cm.name} 闪避失败，减伤 ${Math.round(guard * 100)}%`);
+        totalLoserDmg = baseDmg;
+        tags.push(`应急 ${cm.name} 失败，吃满额差值（-${emgCost} EP）`);
       }
     }
   } else if (loserChoice === 'allin') {
