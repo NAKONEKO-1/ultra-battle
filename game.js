@@ -942,6 +942,12 @@ async function playTurn(action) {
 
   const pFastSwitch = action.kind === 'switch' && teamSpeed(P) > teamSpeed(E);
 
+  // 换人次数用尽：直接当成跳过处理
+  if (action.kind === 'switch' && P.switches <= 0) {
+    log('换人次数已用尽，本回合按跳过处理', 'dim');
+    action = { kind: 'skip' };
+  }
+
   if (action.kind === 'switch') {
     const oldMon = P.team[P.active];
     // 主动换人解除假奥特曼状态
