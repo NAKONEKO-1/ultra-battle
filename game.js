@@ -2567,6 +2567,107 @@ function toggleSfx() {
   if (btn) btn.textContent = sfxEnabled ? '🔊' : '🔇';
 }
 
+
+/* ---------------- 角色详情弹层 ---------------- */
+let detailKey = null;
+
+function openDetail(key) {
+  const d = MONSTERS[key];
+  if (!d) return;
+  detailKey = key;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'detail-overlay';
+  overlay.id = 'detailOverlay';
+
+  const ids = loadout[key] || defaultLoadout(key);
+  const pool = monPool(key);
+  const moves = d.pool ? d.pool : pool;
+  const chosen = d.pool ? null : ids.map((id) => pool.find((x) => x.id === id)).filter(Boolean);
+
+  const statBar = (label, val, max) => {
+    const pct = Math.min(100, (val / max) * 100);
+    return `<div class="ds-row"><span class="ds-label">${label}</span><div class="ds-bar"><i style="width:${pct}%"></i></div><span class="ds-num">${val}</span></div>`;
+  };
+
+  const skillHtml = (m) => {
+    const t = m.type === 'stance'
+      ? (m.vs === 'beam' ? '反制A' : '反制B')
+      : (TYPE_NAME[m.type] || m.type);
+    let extra = '';
+    if (m.type === 'stance') extra = `闪避 ${m.dodge || 0}%`;
+    else if (m.type === 'field') extra = '领域';
+    else if (m.power) extra = `威力 ${m.power}`;
+    return `<div class="ds-skill m-${m.type}">
+      <div class="ds-sk-name">${m.name}</div>
+      <div class="ds-sk-desc">${m.desc || ''}</div>
+      <div class="ds-sk-foot"><span>${t}</span><span>${extra}</span><span>EP ${m.ep || 0}</span></div>
+    </div>`;
+  };
+
+  overlay.innerHTML = `
+    <div class="detail-panel">
+      <button class="detail-close" type="button">×</button>
+      <div class="detail-top">
+        <div class="detail-portrait">${sprite(key)}</div>
+        <div class="detail-passive">
+          <div class="dp-label">角色被动</div>
+          <div class="dp-name">${d.passive ? d.passive.name : '无'}</div>
+          <div class="dp-desc">${d.passive ? (d.passive.desc || '') : ''}</div>
+        </div>
+      </div>
+      <div class="detail-namerow">
+        <span class="detail-name">${d.name}</span>
+        <span class="detail-alias">${d.sub}</span>
+        <span class="detail-type">${d.overlord ? '豪强 · ' : ''}${d.typeName}</span>
+      </div>
+      <div class="detail-stats">
+        ${statBar('HP', d.hp, 200)}
+        ${statBar('攻', d.atk, 130)}
+        ${statBar('防', d.def, 110)}
+        ${statBar('速', d.spd, 110)}
+      </div>
+      <div class="detail-skills">
+        <div class="ds-title">技能</div>
+        <div class="ds-grid">${moves.map(skillHtml).join('')}</div>
+      </div>
+      <div class="detail-actions">
+        <button class="da-pick" type="button"></button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  const pickBtn = overlay.querySelector('.da-pick');
+  const updatePickBtn = () => {
+    const on = selected.includes(key);
+    pickBtn.textContent = on ? '移出队伍' : '选入队伍';
+    pickBtn.classList.toggle('on', on);
+  };
+  updatePickBtn();
+
+  pickBtn.addEventListener('click', () => {
+    if (selected.includes(key)) {
+      selected = selected.filter((k) => k !== key);
+    } else if (selected.length < 3) {
+      selected.push(key);
+    }
+    updatePickBtn();
+    renderPick();
+  });
+
+  overlay.querySelector('.detail-close').addEventListener('click', closeDetail);
+  overlay.addEventListener('click', (ev) => {
+    if (ev.target === overlay) closeDetail();
+  });
+}
+
+function closeDetail() {
+  const ov = document.getElementById('detailOverlay');
+  if (ov) ov.remove();
+  detailKey = null;
+}
+
 /* ---------------- 编成界面 ---------------- */
 function renderPick() {
   const grid = $('#pickGrid');
@@ -2589,21 +2690,15 @@ function renderPick() {
     return `
       <div class="pick-card ${on ? 'on' : ''}" data-key="${key}">
         <div class="pick-sprite">${sprite(key)}</div>
-        <div class="pick-row">
-          <span class="pick-name">${d.name}</span>
-          <span class="pick-cost">${d.cost}</span>
+        <div class="pick-bottom">
+          <div class="pick-row">
+            <span class="pick-name">${d.name}</span>
+            <span class="pick-cost">${d.cost}</span>
+          </div>
+          <div class="pick-sub">${d.sub}</div>
+          <div class="pick-tag">${d.overlord ? '豪强 · ' : ''}${d.typeName}</div>
         </div>
-        <div class="pick-sub">${d.sub} · ${d.typeName}</div>
-        <div class="pick-stats">HP ${d.hp} · 攻 ${d.atk} · 防 ${d.def} · 速 ${d.spd}</div>
-        <div class="pick-passive">被动：${d.passive?.name || '—'}</div>
-        <div class="pick-moves">
-          ${chosen.map((mv) => `<span class="pm pm-${mv.type}">${mv.name}</span>`).join('')}
-        </div>
-        <div class="pick-foot">
-          <button class="build-btn" data-open="${key}" type="button">配技 ${chosen.length}/4</button>
-          <span class="pick-tick">${on ? '已选' : '点击选入'}</span>
-        </div>
-        ${isOpen ? skillPanel(key, pool, ids) : ''}
+        ${on ? '<div class="pick-check">✓</div>' : ''}
       </div>
     `;
   }).join('');
@@ -2655,34 +2750,7 @@ function skillPanel(key, pool, ids) {
 
 function bindPickEvents(grid) {
   grid.querySelectorAll('.pick-card').forEach((card) => {
-    card.addEventListener('click', (ev) => {
-      if (ev.target.closest('.build-btn') || ev.target.closest('.skill-chip')) return;
-      const key = card.dataset.key;
-      if (selected.includes(key)) selected = selected.filter((k) => k !== key);
-      else if (selected.length < 3) selected.push(key);
-      renderPick();
-    });
-  });
-
-  grid.querySelectorAll('[data-open]').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const key = btn.dataset.open;
-      expanded = expanded === key ? null : key;
-      renderPick();
-    });
-  });
-
-  grid.querySelectorAll('.skill-chip').forEach((chip) => {
-    chip.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const key = chip.dataset.mon;
-      const id = chip.dataset.skill;
-      const ids = loadout[key] || defaultLoadout(key);
-      if (ids.includes(id)) loadout[key] = ids.filter((x) => x !== id);
-      else if (ids.length < 4) loadout[key] = [...ids, id];
-      renderPick();
-    });
+    card.addEventListener('click', () => openDetail(card.dataset.key));
   });
 }
 
