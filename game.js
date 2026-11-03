@@ -341,26 +341,43 @@ const PALETTE = {
   earthMonster: ['#6f7d63', '#c9d6b8'],
 };
 
-function sprite(key) {
-  const d = MONSTERS[key];
-  if (!d) return '';
-  const [fill, line] = PALETTE[d.type] || PALETTE.cosmosMan;
-  return `<svg viewBox="0 0 220 200">
-    <g fill="${fill}" stroke="${line}" stroke-width="2.5" stroke-linejoin="round">
-      <path d="M110 40 L136 96 L84 96 Z"/>
-      <ellipse cx="110" cy="126" rx="56" ry="46"/>
-      <ellipse cx="110" cy="74" rx="34" ry="30"/>
-      <path d="M162 132 q38 8 44 42 q-32 -8 -50 -20 Z"/>
-      <path d="M58 114 q-30 18 -24 48 q18 -10 28 -26 Z"/>
-      <path d="M162 114 q30 18 24 48 q-18 -10 -28 -26 Z"/>
-    </g>
-    <circle cx="99" cy="70" r="5.5" fill="#dff1ff"/>
-    <circle cx="121" cy="70" r="5.5" fill="#dff1ff"/>
-    <circle cx="99" cy="70" r="2.2" fill="#0b1622"/>
-    <circle cx="121" cy="70" r="2.2" fill="#0b1622"/>
-  </svg>`;
-}
+const PORTRAIT = {
+  bemular:   'icon/百慕拉.png',
+  baltan:    'icon/巴尔坦星人.png',
+  baltan2:   'icon/巴尔坦星人二代.png',
+  neronga:   'icon/内隆嘎.png',
+  ragon:     'icon/拉贡.png',
+  greenmons: 'icon/绿蒙斯.png',
+  antlar:    'icon/安东拉.png',
+  redking:   'icon/雷德王.png',
+  zarab:     'icon/扎拉布星人.png',
+  jamila:    'icon/贾米拉.png',
+  gomora:    'icon/哥莫拉.png',
+  mephilas:  'icon/美菲拉斯星人.png',
+  zetton:    'icon/杰顿.png',
+  bullton:   'icon/布鲁顿.png',
+  geronimon: 'icon/杰罗尼蒙.png',
+  ultraman:  'icon/奥特曼.png',
+  vtolSmall: 'icon/小型威托.png',
+  vtol:      'icon/威托.png',
+};
 
+const PORTRAIT_DADA = {
+  A: 'icon/达达A.png',
+  B: 'icon/达达B.png',
+  C: 'icon/达达C.png',
+};
+
+function sprite(key, faces) {
+  // 达达按当前面相切换
+  if (key === 'dada') {
+    const f = faces && PORTRAIT_DADA[faces] ? PORTRAIT_DADA[faces] : PORTRAIT_DADA.A;
+    return `<img class="portrait-img" src="${encodeURI(f)}" alt="">`;
+  }
+  const src = PORTRAIT[key];
+  if (src) return `<img class="portrait-img" src="${encodeURI(src)}" alt="">`;
+  return '';
+};
 /* ---------------- 工具 ---------------- */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rnd = () => Math.random();
@@ -1983,7 +2000,7 @@ function paintSide(side, S) {
   const pvEl = $(`#${side}Passive`);
   if (pvEl) pvEl.textContent = m.passive ? `被动 · ${m.passive.name}：${m.passive.desc || ''}` : '';
   $(`#${side}Type`).textContent = m.typeName;
-  $(`#${side}Sprite`).innerHTML = sprite(m.key);
+  $(`#${side}Sprite`).innerHTML = sprite(m.key, m.faces);
 
   $(`#${side}HpBar`).style.width = (m.hp / m.maxHp) * 100 + '%';
   $(`#${side}HpTxt`).textContent = `${m.hp} / ${m.maxHp}`;
