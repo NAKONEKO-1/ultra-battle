@@ -2378,6 +2378,7 @@ function showTutStep(i) {
   clearTutHighlight();
   if (i >= TUT_STEPS.length) {
     overlay.hidden = true;
+    if (tutorialPending) beginTutorialBattle();
     return;
   }
   const step = TUT_STEPS[i];
@@ -2391,11 +2392,21 @@ function showTutStep(i) {
   $('#tutNext').onclick = () => showTutStep(i + 1);
 }
 
+let tutorialPending = false;
+
 function startTutorial() {
   state = null;
+  tutorialPending = true;
   $('#modeSelect').hidden = true;
   $('#dex').hidden = true;
   $('#pick').hidden = true;
+  $('#battle').hidden = true;
+  showTutStep(0);
+}
+
+/* 教程讲完后才真正进入战斗 */
+function beginTutorialBattle() {
+  tutorialPending = false;
   $('#battle').hidden = false;
   if (document.body) document.body.classList.add('in-battle');
   startGame(['bemular'], ['neronga'], 'tutorial');
@@ -2403,7 +2414,6 @@ function startTutorial() {
     m.maxHp = Math.round(m.maxHp * 0.45);
     m.hp = m.maxHp;
   }
-  showTutStep(0);
 }
 
 
