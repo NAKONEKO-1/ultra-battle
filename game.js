@@ -917,6 +917,9 @@ function rollHit(att, def, move, defMove) {
   const foeIsMelee = defMove && defMove.type === 'melee';
   const throwMustHit = move.counterMelee && foeIsMelee;
 
+  // 闪避率统一上限 95%（避免 100% 绝对闪避）
+  dodge = Math.min(95, dodge);
+
   if (!throwMustHit && dodge > 0 && rnd() * 100 < dodge) {
     return { dmg: 0, kind: 'dodge', note };
   }
