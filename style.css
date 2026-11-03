@@ -1575,20 +1575,23 @@ body.in-battle .state-icon { font-size: 11px; padding: 1px 4px; }
 }
 
 .pick-card .pick-sprite {
-  height: 132px;
-  display: grid;
-  place-items: center;
+  height: 170px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   border-radius: 10px;
   background: radial-gradient(circle at 50% 40%, #12243a, #0a1420);
-  padding: 4px;
+  padding: 6px;
 }
 
-.pick-card .pick-sprite .portrait-img {
-  width: auto;
-  height: 100%;
+.pick-card .pick-sprite img.portrait-img {
+  width: auto !important;
+  height: 100% !important;
   max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
+  flex: 0 0 auto;
 }
 
 .pick-bottom { padding: 8px 2px 2px; }
