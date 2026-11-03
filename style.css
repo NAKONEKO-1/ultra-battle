@@ -1524,3 +1524,11 @@ body.in-battle .state-icon { font-size: 11px; padding: 1px 4px; }
   font-family: inherit;
 }
 .sfx-btn:hover { background: #16243a; }
+
+
+/* 卡片撑满网格高度，避免右列留白 */
+.battle .mon-card { height: 100%; box-sizing: border-box; }
+.battle .info-panel { height: 100%; box-sizing: border-box; }
+.battle .skill-panel { align-content: start; }
+.battle .mon-body { display: flex; flex-direction: column; }
+.battle .mon-bars { margin-top: auto; padding-top: 8px; }
