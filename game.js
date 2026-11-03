@@ -79,7 +79,7 @@ const MONSTERS = {
     hp: 105, atk: 82, def: 65, spd: 76, cost: 6,
     melee: { name: '冲刺钳击', power: 60, ep: 7, desc: '无明显效果' },
     beamM: { name: '重力风暴', power: 75, ep: 11, drain: 6, fx: 'noMelee2', desc: '造成击退：敌方无法使用格斗技能两回合' },
-    counterA: { name: '光波屏障', dodge: 70, ep: 5, vs: 'beam', shieldLight: 45, desc: '无明显效果' },
+    counterA: { name: '光波屏障', dodge: 70, ep: 5, vs: 'beam', immuneUlt: '八分光轮', desc: '无明显效果' },
     counterB: { name: '瞬间移动能力', dodge: 50, guard: 0.2, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '蓝色破坏闪光', power: 255, ep: 32, acc: 78, ultType: 'beam', desc: '无明显效果' },
     field: { name: '复仇的巴尔坦', ep: 6, kind: 'dodgeBoost', value: 10, turns: 3, desc: '我方全体闪避 +10%，3 回合' },
@@ -91,7 +91,7 @@ const MONSTERS = {
     hp: 122, atk: 84, def: 70, spd: 55, cost: 6,
     melee: { name: '舍身冲撞', power: 58, ep: 6, desc: '无明显效果' },
     beamM: { name: '高压电击', power: 62, ep: 12, drain: 6, desc: '无明显效果' },
-    counterA: { name: '透明化', dodge: 85, ep: 5, vs: 'beam', chargeDodge: 15, desc: '无明显效果' },
+    counterA: { name: '透明化', dodge: 85, ep: 5, vs: 'beam', chargeDodge: 5, desc: '无明显效果' },
     counterB: { name: '坚硬皮肤', dodge: 40, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '全身放电', power: 250, ep: 28, acc: 78, ultType: 'beam', desc: '无明显效果' },
     field: { name: '吸电力场', ep: 20, kind: 'chargeField', value: 3, turns: 99, desc: '我方命中可为内隆嘎蓄力，满三层自动放全身放电' },
@@ -185,8 +185,8 @@ const MONSTERS = {
   mephilas: {
     id: 'mephilas', name: '美菲拉斯星人', sub: '恶劣宇宙人', type: 'cosmosMan', typeName: '宇宙人',
     hp: 120, atk: 92, def: 68, spd: 70, cost: 8,
-    melee: { name: '抓投', power: 64, ep: 7, vsCosmos: 15, desc: '无明显效果' },
-    beamM: { name: '简易抓握光线', power: 68, ep: 12, drain: 8, clashBonus: 6, desc: '无明显效果' },
+    melee: { name: '抓投', power: 64, ep: 7, stunChance: 35, stunVs: ['cosmosMan', 'ultra'], desc: '对【宇宙人】【奥特曼】时 35% 概率眩晕' },
+    beamM: { name: '简易抓握光线', power: 68, ep: 12, drain: 8, clashBonus: 5, desc: '无明显效果' },
     counterA: { name: '念力屏障', dodge: 62, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '瞬间移动', dodge: 40, guard: 0.3, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '双手光线', power: 245, ep: 30, acc: 78, clashBonus: 12, ultType: 'beam', desc: '无明显效果' },
@@ -276,18 +276,20 @@ const MONSTERS = {
     counterA: { name: '奥特屏障', dodge: 58, ep: 5, vs: 'beam', desc: '光线屏障' },
     counterB: { name: '奥特防御', dodge: 40, guard: 0.3, ep: 5, vs: 'melee', desc: '硬吃格斗' },
     ult: { name: '八分光轮', power: 230, ep: 30, acc: 82, ultType: 'beam', desc: '切割光轮' },
-    field: { name: '正义使者', ep: 12, kind: 'statBoost', value: 15, turns: 3, desc: '我方全属性 +15%，3 回合' },
+    field: { name: '光之国使者', ep: 12, kind: 'statBoost', value: 15, turns: 3, desc: '我方全属性 +15%，3 回合' },
     passive: { name: '彩色计时器', kind: 'ultraTimer', desc: 'HP 低于 30% 时进入红区：攻击 +25%、受伤 +15%' },
     pool: [
       { name: '手刀', type: 'melee', power: 88, ep: 6, desc: '无明显效果' },
       { name: '拳击', type: 'melee', power: 78, ep: 5, desc: '无明显效果' },
+      { name: '投技', type: 'melee', power: 70, ep: 7, counterMelee: true, desc: '对方出格斗时必定命中，75% 连击一次' },
+      { name: '投技', type: 'melee', power: 70, ep: 7, counterMelee: { mustHit: true, combo: 75 }, desc: '对方出格斗时必定命中，且 75% 连击一次' },
       { name: '飞踢', type: 'melee', power: 80, ep: 9, desc: '无明显效果' },
       { name: '切割光线', type: 'beam', power: 65, ep: 6, desc: '无明显效果' },
       { name: '捕捉光环', type: 'beam', power: 50, ep: 7, fx: 'noMelee', firstStrike: true, desc: '必定先手，禁格斗一回合（对杰顿无效）' },
       { name: '奥特念力', type: 'beam', power: 30, ep: 8, fx: 'noBeam', triggerMark: true, desc: '禁光线一回合；若对方带标记则引爆（结算奥特攻击光线的伤害）' },
       { name: '奥特屏障', type: 'stance', dodge: 58, ep: 5, vs: 'beam', epBack: 10, desc: '反制成功后恢复 10 EP' },
       { name: '光轮防御', type: 'stance', dodge: 68, ep: 15, vs: 'beam', counterUlt: '八分光轮', desc: '反制成功后释放八分光轮' },
-      { name: '奥特V字屏障', type: 'stance', dodge: 40, guard: 0.3, ep: 8, vs: 'melee', desc: '有效降低光线伤害' },
+      { name: '奥特V字屏障', type: 'stance', dodge: 40, guard: 0.1, ep: 8, vs: 'melee', desc: '使用时有效降低 10% 光线伤害' },
       { name: '身体强度', type: 'stance', dodge: 38, guard: 0.2, ep: 2, vs: 'melee', immuneElectric: true, desc: '免疫电击伤害' },
       { name: '八分光轮', type: 'ult', power: 230, ep: 30, acc: 82, fx: 'cut', chance: 65, ultType: 'beam', desc: '65% 造成切割' },
       { name: '斯派修姆光线', type: 'ult', power: 200, ep: 25, acc: 86, ultType: 'beam', clashBonus: 10, desc: '对波成功额外 +10 差值' },
@@ -850,8 +852,7 @@ function rollHit(att, def, move, defMove) {
   if (ab.ultBoost && move.type === 'ult') dmg *= 1 + ab.ultBoost / 100;
   // 巴尔坦：拥有二重身时大招伤害翻倍
   if (move.doubleBonus && att.status.double > 0) dmg *= 2;
-  // 美菲拉斯抓投：对宇宙人 +15%
-  if (move.vsCosmos && def.type === 'cosmosMan') dmg *= 1 + move.vsCosmos / 100;
+
   // 对波加成
   if (move.clashBonus) dmg += move.clashBonus;
   if (db.weaken) dmg *= 1 - db.weaken / 100;
@@ -1426,6 +1427,14 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
     target.hp = Math.max(0, target.hp - boom);
     log(`　标记被引爆！${target.name} -${boom} HP（奥特攻击光线结算）`, 'sys');
   }
+  // 美菲拉斯抓投：对宇宙人/奥特曼 35% 眩晕
+  if (move.stunChance && target === def && move.stunVs && move.stunVs.includes(target.type)) {
+    if (rnd() * 100 < move.stunChance) {
+      target.status.stun = 1;
+      log(`　${target.name} 被摔晕，下回合无法行动`, 'sys');
+    }
+  }
+
   if (move.fx && target === def) applyFx(target, move, att);
 
   // 龙森湖 / 火焰：双方
