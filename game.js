@@ -189,7 +189,7 @@ const MONSTERS = {
     beamM: { name: '简易抓握光线', power: 68, ep: 12, drain: 8, clashBonus: 5, desc: '对波时，增加5点伤害' },
     counterA: { name: '念力屏障', dodge: 62, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '瞬间移动', dodge: 40, guard: 0.3, ep: 5, vs: 'melee', desc: '无明显效果' },
-    ult: { name: '双手光线', power: 245, ep: 30, acc: 78, clashBonus: 12, ultType: 'beam', desc: '对波时，增加10点伤害' },
+    ult: { name: '双手光线', power: 245, ep: 30, acc: 78, clashBonus: 10, ultType: 'beam', desc: '对波时，增加10点伤害' },
     field: { name: '恶魔游戏', ep: 21, kind: 'twist', turns: 2, desc: '双方获得游戏：扭转闪避/破姿态效果' },
     passive: { name: '操控人心', kind: 'switchBoost', value: 20, desc: '换人时，换上来的队友下一次伤害 +20%' },
   },
@@ -872,8 +872,9 @@ function rollHit(att, def, move, defMove) {
   // 巴尔坦：拥有二重身时大招伤害翻倍
   if (move.doubleBonus && att.status.double > 0) dmg *= 2;
 
-  // 对波加成
-  if (move.clashBonus) dmg += move.clashBonus;
+  // 对波加成：只有对方也出光线时才生效
+  const foeIsBeam = defMove && (defMove.type === 'beam' || (defMove.type === 'ult' && defMove.ultType === 'beam'));
+  if (move.clashBonus && foeIsBeam) dmg += move.clashBonus;
   if (db.weaken) dmg *= 1 - db.weaken / 100;
   let guardVal = guard;
   if (move.guardFactor) guardVal *= move.guardFactor;
