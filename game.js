@@ -281,9 +281,7 @@ const MONSTERS = {
     pool: [
       { name: '手刀', type: 'melee', power: 88, ep: 6, desc: '无明显效果' },
       { name: '拳击', type: 'melee', power: 78, ep: 5, desc: '无明显效果' },
-      { name: '投技', type: 'melee', power: 70, ep: 7, counterMelee: true, desc: '对方出格斗时必定命中，75% 连击一次' },
-      { name: '投技', type: 'melee', power: 70, ep: 7, counterMelee: { mustHit: true, combo: 75 }, desc: '对方出格斗时必定命中，且 75% 连击一次' },
-      { name: '飞踢', type: 'melee', power: 80, ep: 9, desc: '无明显效果' },
+      { name: '投技', type: 'melee', power: 70, ep: 7, counterMelee: true, desc: '对方出格斗时必定命中，且 75% 连击一次' },
       { name: '切割光线', type: 'beam', power: 65, ep: 6, desc: '无明显效果' },
       { name: '捕捉光环', type: 'beam', power: 50, ep: 7, fx: 'noMelee', firstStrike: true, desc: '必定先手，禁格斗一回合（对杰顿无效）' },
       { name: '奥特念力', type: 'beam', power: 30, ep: 8, fx: 'noBeam', triggerMark: true, desc: '禁光线一回合；若对方带标记则引爆（结算奥特攻击光线的伤害）' },
@@ -834,7 +832,11 @@ function rollHit(att, def, move, defMove) {
   const accMod = siteAccMod(att) + (att.buffs.accUp || 0);
   if (accMod) dodge = Math.max(0, dodge - accMod);
 
-  if (dodge > 0 && rnd() * 100 < dodge) {
+  // 奥特曼·投技：对方出格斗技时必定命中
+  const foeIsMelee = defMove && defMove.type === 'melee';
+  const throwMustHit = move.counterMelee && foeIsMelee;
+
+  if (!throwMustHit && dodge > 0 && rnd() * 100 < dodge) {
     return { dmg: 0, kind: 'dodge', note };
   }
 
@@ -1500,6 +1502,15 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
       target.hp = Math.max(0, target.hp - d2);
       log(`　追击 ${move.chase}！${target.name} -${d2} HP`, 'hit');
       if (target.hp <= 0) break;
+    }
+  }
+
+  // 奥特曼·投技：对方出格斗时 75% 连击一次
+  if (move.counterMelee && target === def && target.hp > 0 && foeMove && foeMove.type === 'melee') {
+    if (rnd() * 100 < 75) {
+      const d3 = Math.max(1, Math.round(move.power * 0.7 * (effAtk(att) / effDef(target)) * 0.16 + 2));
+      target.hp = Math.max(0, target.hp - d3);
+      log(`　投技连击！${target.name} - ${d3} HP`, 'hit');
     }
   }
 
