@@ -581,12 +581,7 @@ function startGame(playerKeys, enemyTeamKeys, mode) {
 
   applySiteEffects(siteKey);
   log('战斗开始', 'sys');
-  setTimeout(() => {
-    playMonCry(state.enemy.team[state.enemy.active].key);
-  }, 300);
-  setTimeout(() => {
-    playMonCry(state.player.team[state.player.active].key);
-  }, 900);
+  playMonCry(state.enemy.team[state.enemy.active].key);
   log(`${site.icon} 场地：${site.name}　${site.desc}`, 'sys');
   log(`你：${teamP.map((m) => m.name).join(' / ')}`, 'dim');
   log(`敌：${teamE.map((m) => m.name).join(' / ')}`, 'dim');
@@ -2398,23 +2393,38 @@ let sfxEnabled = true;
 let audioUnlocked = false;
 
 function unlockAudio() {
+  if (audioUnlocked) return;
   audioUnlocked = true;
+  // 用一次静音播放解锁音频上下文
+  try {
+    const a = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=');
+    a.volume = 0;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* 忽略 */ }
 }
 
 function playSfx(src, volume) {
-  if (!sfxEnabled || !src || !audioUnlocked) return;
+  if (!sfxEnabled || !src) return;
   try {
     let a = audioCache.get(src);
     if (!a) {
       a = new Audio(encodeURI(src));
       a.preload = 'auto';
+      a.addEventListener('error', () => {
+        console.warn('[音效加载失败]', src);
+      });
       audioCache.set(src, a);
     }
     a.volume = volume === undefined ? 0.5 : volume;
-    a.currentTime = 0;
+    try { a.currentTime = 0; } catch (e) {}
     const p = a.play();
-    if (p && p.catch) p.catch(() => {});
-  } catch (e) { /* 忽略 */ }
+    if (p && p.catch) p.catch((err) => {
+      console.warn('[音效播放被拒]', src, err && err.name);
+    });
+  } catch (e) {
+    console.warn('[音效异常]', e);
+  }
 }
 
 function playMonCry(key) {
@@ -2557,6 +2567,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   document.querySelectorAll('[data-mode]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      unlockAudio();
       const mode = btn.dataset.mode;
       if (mode === 'dex') { openDex(); return; }
       if (mode === 'tutorial') { startTutorial(); return; }
@@ -2578,6 +2589,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const db = $('#dexBack');
   if (db) db.addEventListener('click', closeDex);
   $('#startBtn').addEventListener('click', () => {
+    unlockAudio();
     if (selected.length === 3) startGame(selected.slice(), null, gameMode);
   });
 });
