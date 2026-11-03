@@ -457,7 +457,8 @@ function freshBuffs() {
     accUp: 0, ultBoost: 0, weaken: 0, regenOnHit: 0, speedUp: 0,
     copyAtk: 0, copyDef: 0, rage: 0, rageHurt: false,
     clone: null, absorb: false, absorbCd: 0, nullify: false, fieldAura: 0, shrink: 0,
-    atkGain: 0, dmgBoost: 0, meleeAcc: 0, firstStrike: false, clashSpent: false, cooldowns: {},
+    atkGain: 0, dmgBoost: 0, meleeAcc: 0, firstStrike: false, clashSpent: false, clashUsed: false,
+    cooldowns: {}, noRegen: false, forceSlow: false, slowNext: false,
   };
 }
 
@@ -1019,8 +1020,10 @@ async function playTurn(action) {
   const pOrb = pMove && pMove.orbFirst && pNow.orbReady;
   const eOrb = eMove && eMove.orbFirst && eNow.orbReady;
 
-  // 对波：双方都出光线
-  if (action.kind === 'move' && eAction.kind === 'move'
+  // 对波：双方都出光线，且双方都还没用掉对波机会
+  const clashAllowed = !(pNow.buffs.clashUsed && eNow.buffs.clashUsed);
+  if (clashAllowed
+      && action.kind === 'move' && eAction.kind === 'move'
       && isBeamMove(pMove) && isBeamMove(eMove)
       && !pMeleeBlocked && !eMeleeBlocked) {
     await resolveClash(P, E, pMove, eMove);
@@ -1040,8 +1043,8 @@ async function playTurn(action) {
     else if (eNow.buffs.firstStrike) pFirst = false;
     else if (state.field?.kind === 'firstStrike' && state.field.owner === P) pFirst = true;
     else if (state.field?.kind === 'firstStrike' && state.field.owner === E) pFirst = false;
-    else if (pNow.status.slow > 0) pFirst = false;
-    else if (eNow.status.slow > 0) pFirst = true;
+    else if (pNow.buffs.slowNext || pNow.status.slow > 0) { pFirst = false; pNow.buffs.slowNext = false; }
+    else if (eNow.buffs.slowNext || eNow.status.slow > 0) { pFirst = true; eNow.buffs.slowNext = false; }
     else if (action.kind === 'switch' && pFastSwitch) pFirst = false;
     else if (eAction.kind === 'switch') pFirst = true;
     else pFirst = effSpd(pNow) > effSpd(eNow) || (effSpd(pNow) === effSpd(eNow) && rnd() < 0.5);
@@ -1120,79 +1123,153 @@ async function resolveClash(P, E, pMove, eMove) {
   const eRes = rollHit(eMon, pMon, eMove, pMove);
   const D1 = pRes.dmg;
   const D2 = eRes.dmg;
+
+  // 任一方落空 → 不进入对波，按普通命中结算
+  if (D1 === 0 || D2 === 0) {
+    const missed = D1 === 0 && D2 === 0 ? 'both' : (D1 === 0 ? 'p' : 'e');
+    log('　有人落空，对波未成立', 'dim');
+    if (D1 > 0 && eMon.hp > 0) {
+      eMon.hp = Math.max(0, eMon.hp - D1);
+      log(`　${pMon.name} 命中，${eMon.name} -${D1} HP`, 'hit');
+      floatText('enemy', '-' + D1, 'dmg');
+    }
+    if (D2 > 0 && pMon.hp > 0) {
+      pMon.hp = Math.max(0, pMon.hp - D2);
+      log(`　${eMon.name} 命中，${pMon.name} -${D2} HP`, 'hit');
+      floatText('player', '-' + D2, 'dmg');
+    }
+    render();
+    await sleep(350);
+    checkOver();
+    return;
+  }
+
   const pWin = D1 >= D2;
-  const diff = Math.abs(D1 - D2);
-  const winnerDmg = Math.max(D1, D2);
+  const diff1 = Math.abs(D1 - D2);
+  const winnerDmg1 = Math.max(D1, D2);
+  const loserIsP = !pWin;
+  const loser0 = pWin ? eMon : pMon;
+  const winner0 = pWin ? pMon : eMon;
 
-  log(`　你 ${D1}　对　敌 ${D2}　差值 ${diff}`, 'act');
+  log(`　你 ${D1}　对　敌 ${D2}　差值 ${diff1}`, 'act');
 
-  // 规则3：每角色每场只能追加一次 EP
-  const pCanSpend = pMon.ep >= pBaseCost && !pMon.buffs.clashSpent;
-  const eCanSpend = eMon.ep >= eBaseCost && !eMon.buffs.clashSpent;
+  /* 对波机会：每个角色每场只有一次 */
+  const canUseChance = (m) => !m.buffs.clashUsed;
 
-  let pSpend = false;
-  if (pCanSpend) {
-    pSpend = await askClash(diff, pWin, pBaseCost);
-    if (pSpend) {
-      pMon.ep = Math.max(0, pMon.ep - pBaseCost);
-      pMon.buffs.clashSpent = true;
+  let totalLoserDmg = diff1;
+  let finalLoserIsP = loserIsP;
+  let tags = [];
+
+  /* ---------- 输家的选择 ---------- */
+  let loserChoice = 'tank';
+  if (canUseChance(loser0)) {
+    const hasCounter = (loser0.moves || []).some((m) => m.type === 'stance' && m.vs === 'beam');
+    const counterMove = (loser0.moves || []).find((m) => m.type === 'stance' && m.vs === 'beam');
+    const canEmergency = hasCounter && counterMove && loser0.ep >= (counterMove.ep || 0);
+    const canAllIn = loser0.ep > 0;
+    if (loserIsP) {
+      loserChoice = await askClashChoice(diff1, false, {
+        emergency: canEmergency,
+        allin: canAllIn,
+        spend: false,
+      });
+    } else {
+      // AI 决策
+      const hpPctNow = loser0.hp / loser0.maxHp;
+      const lethal = diff1 >= loser0.hp;
+      if (canEmergency && (lethal || hpPctNow < 0.35)) {
+        loserChoice = rnd() < 0.7 ? 'emergency' : 'tank';
+      } else if (canAllIn && lethal && rnd() < 0.35) {
+        loserChoice = 'allin';
+      } else {
+        loserChoice = 'tank';
+      }
     }
   }
 
-  let eSpend = false;
-  if (eCanSpend) {
-    const worth = diff >= Math.max(15, Math.round(winnerDmg * 0.35));
-    const r = rnd();
-    eSpend = worth ? r < 0.75 : r < 0.25;
-    if (eSpend) {
-      eMon.ep = Math.max(0, eMon.ep - eBaseCost);
-      eMon.buffs.clashSpent = true;
+  /* ---------- 处理三种选择 ---------- */
+  let allInBoost = 0;
+
+  if (loserChoice === 'emergency') {
+    const cm = (loser0.moves || []).find((m) => m.type === 'stance' && m.vs === 'beam');
+    if (cm && loser0.ep >= (cm.ep || 0)) {
+      loser0.ep = Math.max(0, loser0.ep - (cm.ep || 0));
+      loser0.buffs.clashUsed = true;
+      const dodge = cm.dodge || 50;
+      if (rnd() * 100 < dodge) {
+        totalLoserDmg = Math.round(diff1 / 2);
+        tags.push(`应急 ${cm.name} 闪避成功，伤害减半`);
+      } else {
+        const guard = cm.guard || 0.12;
+        totalLoserDmg = Math.round(diff1 * (1 - guard));
+        tags.push(`应急 ${cm.name} 闪避失败，减伤 ${Math.round(guard * 100)}%`);
+      }
+    }
+  } else if (loserChoice === 'allin') {
+    const spend = loser0.ep;
+    loser0.ep = 0;
+    loser0.buffs.clashUsed = true;
+    loser0.buffs.noRegen = true;
+    loser0.buffs.forceSlow = true;
+    allInBoost = 1 + spend / 100;
+    tags.push(`全力！投入 ${spend} EP，伤害 ×${allInBoost.toFixed(2)}`);
+  }
+
+  /* ---------- 赢家的追加 ---------- */
+  let winnerSpend = false;
+  if (winner0.buffs && !winner0.buffs.clashUsed) {
+    const canSpend = winner0.ep >= (pWin ? pBaseCost : eBaseCost) && allInBoost === 0;
+    if (canSpend) {
+      if (!loserIsP) {
+        // 玩家是赢家
+        winnerSpend = (await askClashChoice(diff1, true, { spend: true, emergency: false, allin: false })) === 'spend';
+      } else {
+        // AI 是赢家
+        const worth = diff1 >= Math.max(15, Math.round(winnerDmg1 * 0.35));
+        winnerSpend = worth ? rnd() < 0.6 : rnd() < 0.2;
+      }
+    }
+    if (winnerSpend) {
+      winner0.ep = Math.max(0, winner0.ep - (pWin ? pBaseCost : eBaseCost));
+      winner0.buffs.clashUsed = true;
     }
   }
 
-  const loserSpend = pWin ? eSpend : pSpend;
-  const winnerSpend = pWin ? pSpend : eSpend;
-
-  let loserDmg = 0;
-  let tag = '';
-  let newLoserSide = pWin ? 'e' : 'p';
-
-  if (!loserSpend && !winnerSpend) {
-    // 规则4：双方都没追加，差值伤害不能致命
-    const loserHpNow = (pWin ? eMon : pMon).hp;
-    loserDmg = Math.min(diff, Math.max(0, loserHpNow - 1));
-    tag = '差值全吃（不致命）';
-  } else if (!loserSpend && winnerSpend) {
-    loserDmg = winnerDmg + diff;
-    tag = '赢家追加，原伤害 + 差值';
-  } else {
-    // 输家追加 / 都追加：第二次判定（双方伤害各叠加两次），这次不能再追加
-    const newDiff = Math.abs(D1 * 2 - D2 * 2);
-    const newPWin = D1 * 2 >= D2 * 2;
-    newLoserSide = newPWin ? 'e' : 'p';
-    loserDmg = diff + newDiff;
-    tag = newPWin === pWin
-      ? `两次判定，差值相加 ${diff}+${newDiff}`
-      : `第二次判定翻盘！差值相加 ${diff}+${newDiff}`;
+  /* ---------- 计算第二次差值 ---------- */
+  let diff2 = 0;
+  if (allInBoost > 0) {
+    // 输家全力：自己伤害放大后重新比较
+    const newLoserDmg = Math.round((pWin ? D2 : D1) * allInBoost);
+    const winnerD = pWin ? D1 : D2;
+    diff2 = Math.abs(winnerD - newLoserDmg);
+    if (newLoserDmg > winnerD) {
+      finalLoserIsP = pWin;
+      tags.push('全力翻盘！');
+    }
+    totalLoserDmg = diff1 + diff2;
+  } else if (winnerSpend) {
+    // 赢家追加：多产生一次伤害
+    diff2 = winnerDmg1;
+    totalLoserDmg = diff1 + diff2;
+    tags.push('赢家追加，追加伤害');
   }
 
-  const loserMon = newLoserSide === 'p' ? pMon : eMon;
-  const winnerMon = newLoserSide === 'p' ? eMon : pMon;
+  const loserMon = finalLoserIsP ? pMon : eMon;
+  const winnerMon = finalLoserIsP ? eMon : pMon;
 
-  loserMon.hp = Math.max(0, loserMon.hp - loserDmg);
-  log(`　${loserMon.name} 吃下 ${loserDmg} 伤害（${tag}）`, 'hit');
-  flash(newLoserSide === 'e' ? 'enemy' : 'player');
-  floatText(newLoserSide === 'e' ? 'enemy' : 'player', '-' + loserDmg, 'dmg');
+  loserMon.hp = Math.max(0, loserMon.hp - totalLoserDmg);
+  log(`　${loserMon.name} 吃下 ${totalLoserDmg} 伤害${tags.length ? '（' + tags.join('；') + '）' : ''}`, 'hit');
+  flash(finalLoserIsP ? 'player' : 'enemy');
+  floatText(finalLoserIsP ? 'player' : 'enemy', '-' + totalLoserDmg, 'dmg');
 
-  // 规则2：对波赢家恢复本次消耗（技能+追加）的一半
-  const winnerIsP = newLoserSide === 'e';
-  const winnerBase = winnerIsP ? pBaseCost : eBaseCost;
-  const winnerDidSpend = winnerIsP ? pSpend : eSpend;
-  const spentTotal = winnerBase + (winnerDidSpend ? winnerBase : 0);
-  const refund = Math.floor(spentTotal / 2);
-  if (refund > 0) {
-    winnerMon.ep = clamp(winnerMon.ep + refund, 0, EP_MAX);
-    log(`　${winnerMon.name} 对波胜出，回复 ${refund} EP`, 'ep');
+  /* 赢家回 EP */
+  if (winnerSpend) {
+    const base = finalLoserIsP ? eBaseCost : pBaseCost;
+    const refund = Math.floor(base / 2);
+    if (refund > 0) {
+      winnerMon.ep = clamp(winnerMon.ep + refund, 0, EP_MAX);
+      log(`　${winnerMon.name} 对波胜出，回复 ${refund} EP`, 'ep');
+    }
   }
 
   if (pMove.orbFirst) pMon.orbReady = false;
@@ -1203,11 +1280,14 @@ async function resolveClash(P, E, pMove, eMove) {
   checkOver();
 }
 
-function askClash(diff, isWinner, cost) {
+function askClashChoice(diff, isWinner, opts) {
   return new Promise((resolve) => {
-    // 无 DOM 环境（测试）直接不追加
-    if (!document.body) { resolve(false); return; }
-    state.clash = { diff, isWinner, cost, resolve };
+    if (!document.body) {
+      // 测试环境：输家默认硬吃，赢家默认不追加
+      resolve(isWinner ? 'pass' : 'tank');
+      return;
+    }
+    state.clash = { diff, isWinner, opts, resolve };
     renderClash();
   });
 }
@@ -1218,26 +1298,45 @@ function renderClash() {
   const c = state.clash;
   if (!c) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
+
+  const isLoser = !c.isWinner;
+  const btns = [];
+
+  if (isLoser) {
+    btns.push(`<button id="clashTank" type="button">硬吃（${c.diff} 伤害）</button>`);
+    if (c.opts.emergency) {
+      btns.push(`<button id="clashEmg" type="button">应急（展开反制，闪避成功减半）</button>`);
+    }
+    if (c.opts.allin) {
+      btns.push(`<button id="clashAllin" class="danger" type="button">全力（耗尽全部 EP，伤害 ×2，下回合瘫痪）</button>`);
+    }
+  } else {
+    if (c.opts.spend) {
+      btns.push(`<button id="clashSpend" type="button">追加 EP（多打一次伤害）</button>`);
+    }
+    btns.push(`<button id="clashPass" type="button">见好就收</button>`);
+  }
+
   box.innerHTML = `
     <div class="clash-title">对波判定</div>
     <div class="clash-diff">差值 ${c.diff}　${c.isWinner ? '你是赢家' : '你是输家'}</div>
-    <div class="clash-btns">
-      <button id="clashSpend" type="button">追加 ${c.cost} EP</button>
-      <button id="clashPass" type="button">不追加</button>
-    </div>
+    <div class="clash-btns">${btns.join('')}</div>
   `;
-  $('#clashSpend').addEventListener('click', () => {
-    const r = c.resolve;
-    state.clash = null;
-    renderClash();
-    r(true);
-  });
-  $('#clashPass').addEventListener('click', () => {
-    const r = c.resolve;
-    state.clash = null;
-    renderClash();
-    r(false);
-  });
+
+  const pick = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', () => {
+      const r = c.resolve;
+      state.clash = null;
+      renderClash();
+      r(val);
+    });
+  };
+  pick('clashTank', 'tank');
+  pick('clashEmg', 'emergency');
+  pick('clashAllin', 'allin');
+  pick('clashSpend', 'spend');
+  pick('clashPass', 'pass');
 }
 
 /* ---------------- 单个技能 ---------------- */
@@ -1801,7 +1900,18 @@ function endOfTurn() {
   for (const S of [P, E]) {
     const m = S.team[S.active];
     if (!m || m.hp <= 0) continue;
-    m.ep = clamp(m.ep + EP_REGEN, 0, EP_MAX);
+    // 全力对波后：本回合不回 EP
+    if (m.buffs.noRegen) {
+      m.buffs.noRegen = false;
+      log(`${m.name} 全力对波后未回复 EP`, 'dim');
+    } else {
+      m.ep = clamp(m.ep + EP_REGEN, 0, EP_MAX);
+    }
+    // 全力对波后：下回合必定后手
+    if (m.buffs.forceSlow) {
+      m.buffs.slowNext = true;
+      m.buffs.forceSlow = false;
+    }
     if (m.buffs.absorbCd > 0) m.buffs.absorbCd--;
     if (m.buffs.shrink > 0) m.buffs.shrink--;
     if (m.status.noMelee > 0) m.status.noMelee--;
