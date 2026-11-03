@@ -2284,8 +2284,10 @@ function aiChoose(S, foeS, history) {
     const next = S.team.findIndex((m, i) => i !== S.active && m.hp > 0);
     if (next !== -1) {
       const fast = teamSpeed(S) > teamSpeed(foeS);
-      const stance = me.moves.find((m) => m.type === 'stance');
-      return { kind: 'switch', next, follow: fast ? pickAttack(me) : stance || null };
+      // 换人后的行动必须用【新角色】的技能，不能用旧角色的
+      const nextMon = S.team[next];
+      const nextStance = nextMon.moves.find((m) => m.type === 'stance');
+      return { kind: 'switch', next, follow: fast ? pickAttack(nextMon) : nextStance || null };
     }
   }
 
