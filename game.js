@@ -466,7 +466,9 @@ function monPool(key) {
   const d = MONSTERS[key];
   if (!d) return [];
   if (d.pool) {
-    return d.pool.map((x, i) => ({ ...x, id: key + ':p' + i, slot: 'sig' }));
+    const arr = d.pool.map((x, i) => ({ ...x, id: key + ':p' + i, slot: 'sig' }));
+    if (d.field) arr.push({ ...d.field, type: 'field', slot: 'sp', id: key + ':field' });
+    return arr;
   }
   const list = [];
   for (const c of Object.values(COMMON)) list.push({ ...c, slot: 'common', id: c.id });
