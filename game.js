@@ -489,13 +489,37 @@ function defaultLoadout(key) {
 }
 
 /* 角色离场时清理临时状态 */
+/* 角色离场时清理临时状态（换人 / 死亡 / 死后换人） */
 function clearTempState(m) {
   if (!m) return;
+
+  /* --- 顶层字段 --- */
   m.orbReady = false;
   m.counterBonus = 0;
   m.passiveBonus = 1;
+  m.deathSaved = false;
+  m.nullified = false;
+  m.cloneUses = 0;
+  m.faces = null;
+
+  /* --- buffs --- */
   if (m.buffs) {
+    m.buffs.accUp = 0;
+    m.buffs.ultBoost = 0;
+    m.buffs.weaken = 0;
+    m.buffs.regenOnHit = 0;
+    m.buffs.speedUp = 0;
+    m.buffs.copyAtk = 0;
+    m.buffs.copyDef = 0;
+    m.buffs.rage = 0;
+    m.buffs.rageHurt = false;
+    m.buffs.clone = null;
+    m.buffs.absorb = false;
+    m.buffs.absorbCd = 0;
     m.buffs.nullify = false;
+    m.buffs.fieldAura = 0;
+    m.buffs.shrink = 0;
+    m.buffs.atkGain = 0;
     m.buffs.dmgBoost = 0;
     m.buffs.meleeAcc = 0;
     m.buffs.firstStrike = false;
@@ -503,6 +527,13 @@ function clearTempState(m) {
     m.buffs.forceSlow = false;
     m.buffs.slowNext = false;
     m.buffs.secondWind = false;
+  }
+
+  /* --- status：只清"自身增益型"，负面状态跟着角色走 --- */
+  if (m.status) {
+    m.status.double = 0;   // 二重身是自身替身
+    m.status.charge = 0;   // 电流层数
+    m.status.down = 0;     // 倒地是一次性
   }
 }
 
