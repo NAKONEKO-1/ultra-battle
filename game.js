@@ -1214,9 +1214,9 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   }
 
   log(`${sideName} · ${att.name} 使用 ${move.name}`, 'act');
-  if (move.type === 'ult') {
-    if (att.key === 'ultraman') playSfx(SFX_MISC.spesium, VOL.ult);
-    else if (att.key !== 'dada') playMonCry(att.key);
+  // 大招音效：只有奥特曼有专属音效
+  if (move.type === 'ult' && att.key === 'ultraman') {
+    playSfx(SFX_MISC.spesium, VOL.ult);
   }
   render();
   await sleep(180);
@@ -2364,7 +2364,7 @@ function startTutorial() {
 
 /* ---------------- 音效 ---------------- */
 const SFX = {
-  bemlar:    'music/cry/bemular.mp3',
+  bemular:   'music/cry/bemular.mp3',
   baltan:    'music/cry/baltan.mp3',
   baltan2:   'music/cry/baltan2.mp3',
   neronga:   'music/cry/neronga.mp3',
@@ -2441,6 +2441,12 @@ function playSfx(src, volume) {
   } catch (e) {
     console.warn('[音效异常]', e);
   }
+}
+
+/* 调试：打印当前音效映射 */
+function dumpSfxMap() {
+  console.log('[音效映射]', SFX);
+  console.log('[技能音效]', SFX_MISC);
 }
 
 function playMonCry(key) {
@@ -2613,7 +2619,7 @@ window.addEventListener('DOMContentLoaded', () => {
 if (typeof window !== 'undefined') {
   window.__TEST__ = {
     startGame, startTutorial, showTutStep, playTurn, aiChoose, getState: () => state, MONSTERS, TEAM_COST, monPool, MUTEX,
-    makeMon, rollHit, applyFx, execMove, resolveClash, effAtk, effDef, effSpd, typeMult, fieldBoost, freshStatus, freshBuffs, COMMON, MAX_TIMER,
+    SFX, SFX_MISC, VOL, playSfx, playMonCry, makeMon, rollHit, applyFx, execMove, resolveClash, effAtk, effDef, effSpd, typeMult, fieldBoost, freshStatus, freshBuffs, COMMON, MAX_TIMER,
     BONDS, PASSIVES_REF: null,
     setLoadout: (key, ids) => { loadout[key] = ids; },
     getLoadout: () => loadout,
