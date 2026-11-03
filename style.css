@@ -2170,3 +2170,77 @@ body {
 
 /* 底部 */
 .foot { color: #8a8c96; }
+
+
+/* ========== 按钮统一：黑框白底黑字 ========== */
+.move,
+.start-btn,
+.back-btn,
+.tut-next,
+.da-pick,
+.build-btn,
+.skill-chip,
+.mode-btn,
+.clash-btns button,
+#clashSpend,
+#clashPass,
+#again,
+.sfx-btn,
+.pick-back {
+  background: #ffffff !important;
+  color: #16161a !important;
+  border: 1px solid #16161a !important;
+  font-weight: 600;
+}
+
+.move:hover:not(:disabled),
+.start-btn:hover:not(:disabled),
+.back-btn:hover,
+.tut-next:hover,
+.da-pick:hover,
+.build-btn:hover,
+.skill-chip:hover,
+.mode-btn:hover,
+.clash-btns button:hover,
+#again:hover,
+.sfx-btn:hover {
+  background: #fff4ea !important;
+  border-color: #ff7a1a !important;
+  color: #a8480c !important;
+}
+
+/* 选中态：橙底 */
+.skill-chip.on,
+.da-pick.on {
+  background: #ff7a1a !important;
+  border-color: #ff7a1a !important;
+  color: #16161a !important;
+}
+
+/* 禁用态 */
+.move:disabled,
+.start-btn:disabled {
+  background: #f2f3f7 !important;
+  color: #9a9ca6 !important;
+  border-color: #d0d2da !important;
+}
+
+/* 技能卡里的类型标签恢复小字配色 */
+.move .move-name { color: inherit; }
+.move .move-meta { color: #6a6c76; }
+.move .move-desc { color: #8a8c96; }
+
+/* 选项框里的换人/跳过也统一 */
+.option-box .move { background: #ffffff !important; color: #16161a !important; }
+
+/* 对波两个按钮：追加用橙，不追加用白 */
+.clash-btns #clashSpend {
+  background: #ff7a1a !important;
+  border-color: #ff7a1a !important;
+  color: #16161a !important;
+}
+.clash-btns #clashPass { background: #ffffff !important; color: #16161a !important; }
+
+/* 模式卡图标下的标题 */
+.mode-btn .mode-title { color: #16161a; }
+.mode-btn .mode-sub { color: #6a6c76; }
