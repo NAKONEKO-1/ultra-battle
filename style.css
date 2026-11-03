@@ -1575,12 +1575,13 @@ body.in-battle .state-icon { font-size: 11px; padding: 1px 4px; }
 }
 
 .pick-card .pick-sprite {
-  height: 108px;
+  height: 132px;
   display: grid;
   place-items: center;
   overflow: hidden;
   border-radius: 10px;
   background: radial-gradient(circle at 50% 40%, #12243a, #0a1420);
+  padding: 4px;
 }
 
 .pick-card .pick-sprite .portrait-img {
@@ -1804,4 +1805,46 @@ body.in-battle .state-icon { font-size: 11px; padding: 1px 4px; }
   .ds-grid { grid-template-columns: 1fr; }
   .detail-stats { grid-template-columns: 1fr; }
   .detail-name { font-size: 19px; }
+}
+
+
+/* cost 角标 */
+.pick-card .pick-cost {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  background: #101c2c;
+  border: 1px solid #4a3a1a;
+  color: #ffd24a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 8px;
+}
+
+/* 详情技能：可点击配技 */
+.ds-skill {
+  cursor: pointer;
+  transition: border-color .16s, background .16s, transform .12s;
+}
+
+.ds-skill:hover { transform: translateY(-2px); border-color: #2a4a6e; }
+
+.ds-skill.on {
+  border-color: #6fe0a0;
+  background: #0d2018;
+  box-shadow: 0 0 14px rgba(111, 224, 160, .18);
+}
+
+.ds-skill.on .ds-sk-name::after {
+  content: ' ✓';
+  color: #6fe0a0;
+  font-size: 11px;
+}
+
+.ds-count {
+  color: #6fe0a0;
+  font-size: 10px;
+  letter-spacing: 1px;
 }

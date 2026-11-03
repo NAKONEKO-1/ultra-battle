@@ -2580,17 +2580,20 @@ function openDetail(key) {
   overlay.className = 'detail-overlay';
   overlay.id = 'detailOverlay';
 
-  const ids = loadout[key] || defaultLoadout(key);
   const pool = monPool(key);
-  const moves = d.pool ? d.pool : pool;
-  const chosen = d.pool ? null : ids.map((id) => pool.find((x) => x.id === id)).filter(Boolean);
+  // 统一成 { id, move } 列表
+  const allSkill = d.pool
+    ? d.pool.map((mv, i) => ({ id: key + ':p' + i, move: mv }))
+    : pool.map((mv) => ({ id: mv.id, move: mv }));
+  const noLoadout = !!d.pool; // 奥特曼在 3v3 也走 loadout，但池子里是全部技能
 
   const statBar = (label, val, max) => {
     const pct = Math.min(100, (val / max) * 100);
     return `<div class="ds-row"><span class="ds-label">${label}</span><div class="ds-bar"><i style="width:${pct}%"></i></div><span class="ds-num">${val}</span></div>`;
   };
 
-  const skillHtml = (m) => {
+  const skillCard = (entry) => {
+    const m = entry.move;
     const t = m.type === 'stance'
       ? (m.vs === 'beam' ? '反制A' : '反制B')
       : (TYPE_NAME[m.type] || m.type);
@@ -2598,7 +2601,7 @@ function openDetail(key) {
     if (m.type === 'stance') extra = `闪避 ${m.dodge || 0}%`;
     else if (m.type === 'field') extra = '领域';
     else if (m.power) extra = `威力 ${m.power}`;
-    return `<div class="ds-skill m-${m.type}">
+    return `<div class="ds-skill m-${m.type}" data-sid="${entry.id}">
       <div class="ds-sk-name">${m.name}</div>
       <div class="ds-sk-desc">${m.desc || ''}</div>
       <div class="ds-sk-foot"><span>${t}</span><span>${extra}</span><span>EP ${m.ep || 0}</span></div>
@@ -2628,8 +2631,8 @@ function openDetail(key) {
         ${statBar('速', d.spd, 110)}
       </div>
       <div class="detail-skills">
-        <div class="ds-title">技能</div>
-        <div class="ds-grid">${moves.map(skillHtml).join('')}</div>
+        <div class="ds-title">技能　<span class="ds-count"></span></div>
+        <div class="ds-grid">${allSkill.map(skillCard).join('')}</div>
       </div>
       <div class="detail-actions">
         <button class="da-pick" type="button"></button>
@@ -2638,6 +2641,39 @@ function openDetail(key) {
 
   document.body.appendChild(overlay);
 
+  /* 技能选择 */
+  const grid = overlay.querySelector('.ds-grid');
+  const countEl = overlay.querySelector('.ds-count');
+
+  function syncSkills() {
+    const ids = loadout[key] || defaultLoadout(key);
+    grid.querySelectorAll('.ds-skill').forEach((el) => {
+      el.classList.toggle('on', ids.includes(el.dataset.sid));
+    });
+    if (countEl) countEl.textContent = `${ids.length} / 4`;
+  }
+
+  grid.querySelectorAll('.ds-skill').forEach((el) => {
+    el.addEventListener('click', () => {
+      const sid = el.dataset.sid;
+      const ids = (loadout[key] || defaultLoadout(key)).slice();
+      const idx = ids.indexOf(sid);
+      if (idx >= 0) {
+        if (ids.length <= 1) return; // 至少留一个
+        ids.splice(idx, 1);
+      } else {
+        if (ids.length >= 4) return; // 最多四个
+        ids.push(sid);
+      }
+      loadout[key] = ids;
+      syncSkills();
+      renderPick();
+    });
+  });
+
+  syncSkills();
+
+  /* 选入 / 移出 */
   const pickBtn = overlay.querySelector('.da-pick');
   const updatePickBtn = () => {
     const on = selected.includes(key);
@@ -2689,11 +2725,11 @@ function renderPick() {
 
     return `
       <div class="pick-card ${on ? 'on' : ''}" data-key="${key}">
+        <span class="pick-cost">${d.cost}</span>
         <div class="pick-sprite">${sprite(key)}</div>
         <div class="pick-bottom">
           <div class="pick-row">
             <span class="pick-name">${d.name}</span>
-            <span class="pick-cost">${d.cost}</span>
           </div>
           <div class="pick-sub">${d.sub}</div>
           <div class="pick-tag">${d.overlord ? '豪强 · ' : ''}${d.typeName}</div>
