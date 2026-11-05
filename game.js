@@ -1041,6 +1041,26 @@ async function playTurn(action) {
   {
     const cur = (state && state.mode === 'tutorial') ? currentTut() : null;
     if (cur && cur.enemy) {
+      // 教程：敌方完全按脚本出招，不走 AI
+      const em = E.team[E.active];
+      let forced = em.moves.find((mm) => mm.name === cur.enemy);
+      if (!forced) {
+        const fromPool = monPool(em.key).find((mm) => mm.name === cur.enemy);
+        if (fromPool) {
+          forced = { ...fromPool };
+          em.moves = [...em.moves, forced];
+        }
+      }
+      eAction = forced ? { kind: 'move', move: forced } : { kind: 'skip' };
+    } else if (state && state.mode === 'tutorial') {
+      // 教程毕业战：给个随机的普通招，不走 AI
+      const em = E.team[E.active];
+      const usable = em.moves.filter((mm) => ['melee', 'beam'].includes(mm.type));
+      eAction = usable.length ? { kind: 'move', move: usable[Math.floor(Math.random() * usable.length)] } : { kind: 'skip' };
+    } else {
+      eAction = aiChoose(E, P);
+    }
+    if (cur && cur.enemy) {
       const em = E.team[E.active];
       const forced = em.moves.find((mm) => mm.name === cur.enemy);
       eAction = forced ? { kind: 'move', move: forced } : aiChoose(E, P);
