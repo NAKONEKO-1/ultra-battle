@@ -2777,3 +2777,79 @@ body {
 }
 
 .tut-skip:hover { border-color: #e03030; color: #e03030; }
+
+
+/* ========== 教程完成面板 ========== */
+.tut-done {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10,8,5,.78);
+  backdrop-filter: blur(4px);
+  animation: tdFade .3s ease-out;
+}
+
+@keyframes tdFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.td-box {
+  width: min(420px, 88vw);
+  padding: 36px 32px;
+  border-radius: 18px;
+  border: 2px solid #ffb040;
+  background: linear-gradient(160deg, #1c1408, #2a1e0c);
+  box-shadow: 0 0 50px rgba(255,176,64,.45);
+  text-align: center;
+  animation: tdPop .42s cubic-bezier(.2,.9,.3,1);
+}
+
+@keyframes tdPop {
+  0% { transform: scale(.82); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.td-icon {
+  font-size: 40px;
+  color: #ffd166;
+  text-shadow: 0 0 24px rgba(255,176,64,.95);
+  margin-bottom: 10px;
+  animation: bbSpin 2.4s linear infinite;
+}
+
+.td-title {
+  font-size: 26px;
+  font-weight: 900;
+  color: #ffe0a8;
+  letter-spacing: 4px;
+  margin-bottom: 14px;
+}
+
+.td-text {
+  font-size: 13px;
+  color: #d8c4a0;
+  line-height: 1.8;
+  margin-bottom: 26px;
+}
+
+.td-btn {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 40px;
+  border-radius: 10px;
+  border: none;
+  background: #ff7a1a;
+  color: #16161a;
+  cursor: pointer;
+  transition: all .16s;
+}
+
+.td-btn:hover {
+  background: #ffb040;
+  transform: translateY(-2px);
+}

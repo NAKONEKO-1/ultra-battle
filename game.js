@@ -3188,17 +3188,6 @@ const TUT_SCRIPT = [
     dmgEnemy: 26,
     dmgPlayer: 0,
   },
-  {
-    lesson: '毕业战',
-    hint: '前面教的都用上了。从这一课开始自由操作，右侧技能全部可用。',
-    allow: null,
-    enemyLine: null,
-    playerLine: null,
-    resultLines: [],
-    dmgEnemy: 0,
-    dmgPlayer: 0,
-    free: true,
-  },
 ];
 
 let tutStep = 0;
@@ -3403,7 +3392,7 @@ async function tutPlay(action) {
   renderActions();
 
   advanceTutorial();
-  state.busy = false;
+  if (state) state.busy = false;
 }
 
 
@@ -3429,11 +3418,36 @@ function endTutorial() {
   tutStep = TUT_SCRIPT.length;
   const bar = document.getElementById('tutBar');
   if (bar) bar.hidden = true;
+  const skip = document.getElementById('tutSkip');
+  if (skip) skip.hidden = true;
+
+  // 显示完成面板
+  if (document.body) {
+    const old = document.getElementById('tutDone');
+    if (old) old.remove();
+    const panel = document.createElement('div');
+    panel.id = 'tutDone';
+    panel.className = 'tut-done';
+    panel.innerHTML = `
+      <div class="td-box">
+        <div class="td-icon">✦</div>
+        <div class="td-title">教程完成</div>
+        <div class="td-text">格斗、反制、破姿态、被动、类型克制、EP、对波、领域、换人、状态 —— 都见过了。</div>
+        <button class="td-btn" id="tutDoneBtn" type="button">开始游戏</button>
+      </div>`;
+    document.body.appendChild(panel);
+    const btn = document.getElementById('tutDoneBtn');
+    if (btn) btn.onclick = () => {
+      panel.remove();
+      state = null;
+      document.getElementById('battle').hidden = true;
+      document.getElementById('modeSelect').hidden = false;
+      document.body.classList.remove('in-battle');
+    };
+  }
+
   state = null;
-  $('#battle').hidden = true;
-  $('#modeSelect').hidden = false;
-  if (document.body) document.body.classList.remove('in-battle');
-  localStorage.setItem('ultra_tut_done', '1');
+  try { localStorage.setItem('ultra_tut_done', '1'); } catch (e) {}
 }
 
 
