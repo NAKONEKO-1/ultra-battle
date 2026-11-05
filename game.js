@@ -1218,17 +1218,19 @@ function playUltBanner(mon, moveName, isPlayer) {
   nameEl.textContent = mon.name;
   moveEl.textContent = moveName;
 
-  box.classList.remove('side-player', 'side-enemy');
+  box.classList.remove('side-player', 'side-enemy', 'in');
   box.classList.add(isPlayer ? 'side-player' : 'side-enemy');
   box.hidden = false;
-
-  // 重播动画
-  box.style.animation = 'none';
   void box.offsetWidth;
-  box.style.animation = '';
+  box.classList.add('in');
 
   clearTimeout(globalThis.__ubTimer);
-  globalThis.__ubTimer = setTimeout(() => { box.hidden = true; }, 1150);
+  clearTimeout(globalThis.__ubHide);
+  // 停留后收回
+  globalThis.__ubTimer = setTimeout(() => {
+    box.classList.remove('in');
+    globalThis.__ubHide = setTimeout(() => { box.hidden = true; }, 360);
+  }, 940);
 }
 
 function playClashFx(label, pSkill, eSkill) {
