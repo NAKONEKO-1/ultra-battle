@@ -2525,3 +2525,164 @@ body {
   0%   { opacity: 0; }
   100% { opacity: 1; }
 }
+
+
+/* ========== 选人筛选 / 羁绊横幅 / 图鉴 tab ========== */
+.pick-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 16px;
+}
+
+.filter-btn {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid #d0d2da;
+  background: #fff;
+  color: #3a3c44;
+  cursor: pointer;
+  transition: all .16s;
+}
+
+.filter-btn:hover { border-color: #ff7a1a; color: #a8480c; }
+.filter-btn.on {
+  background: #ff7a1a;
+  border-color: #ff7a1a;
+  color: #16161a;
+  font-weight: 700;
+}
+
+/* 卡片上的「详细」按钮 */
+.pick-detail-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #d0d2da;
+  background: rgba(255,255,255,.92);
+  color: #4a4c56;
+  cursor: pointer;
+  z-index: 3;
+  transition: all .16s;
+}
+
+.pick-detail-btn:hover {
+  border-color: #ff7a1a;
+  color: #a8480c;
+  background: #fff4ea;
+}
+
+/* ========== 羁绊横幅 ========== */
+.bond-banner {
+  position: fixed;
+  left: 50%;
+  top: 18%;
+  transform: translate(-50%, -40px) scale(.9);
+  z-index: 97;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 34px;
+  border-radius: 16px;
+  border: 2px solid #ffb040;
+  background: linear-gradient(135deg, rgba(26,18,8,.97), rgba(38,26,10,.97));
+  box-shadow: 0 0 40px rgba(255,176,64,.55), 0 12px 40px rgba(0,0,0,.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: all .38s cubic-bezier(.2,.9,.3,1);
+  max-width: 90vw;
+}
+
+.bond-banner.in {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.bb-icon {
+  font-size: 32px;
+  color: #ffd166;
+  text-shadow: 0 0 20px rgba(255,176,64,.9);
+  animation: bbSpin 2.4s linear infinite;
+}
+
+@keyframes bbSpin {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.15); }
+}
+
+.bb-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffe0a8;
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+
+.bb-desc {
+  font-size: 13px;
+  color: #e8d0a8;
+  line-height: 1.5;
+}
+
+/* ========== 图鉴 tab ========== */
+.dex-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0 16px;
+}
+
+.dex-tab {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 24px;
+  border-radius: 10px;
+  border: 1px solid #d0d2da;
+  background: #fff;
+  color: #3a3c44;
+  cursor: pointer;
+}
+
+.dex-tab.on {
+  background: #16161a;
+  border-color: #16161a;
+  color: #fff;
+  font-weight: 700;
+}
+
+.dex-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.dex-block {
+  border: 1px solid #d0d2da;
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 18px;
+}
+
+.dex-block h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: #16161a;
+}
+
+.dex-block p {
+  margin: 0;
+  font-size: 12px;
+  color: #5a5c66;
+  line-height: 1.6;
+}
+
+.dex-block .members {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #8a8c96;
+}

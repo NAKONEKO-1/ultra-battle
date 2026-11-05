@@ -429,6 +429,8 @@ function pickableKeys() {
 }
 let state = null;
 let selected = [];
+let pickFilter = 'all';
+let dexTab = 'mon';
 let loadout = {};
 let expanded = null;
 
@@ -2824,27 +2826,72 @@ function skillLine(m) {
 
 function renderDex() {
   const grid = $('#dexGrid');
-  if (!grid) return;
-  grid.innerHTML = DEX_ORDER.map((key) => {
-    const d = MONSTERS[key];
-    if (!d) return '';
-    return `
-      <div class="pick-card dex-card" data-dex="${key}">
-        <span class="pick-cost">${d.cost || '—'}</span>
-        <div class="pick-sprite">${sprite(key)}</div>
-        <div class="pick-bottom">
-          <div class="pick-row">
-            <span class="pick-name">${d.name}</span>
-          </div>
-          <div class="pick-sub">${d.sub}</div>
-          <div class="pick-tag">${d.overlord ? '豪强 · ' : ''}${d.typeName}</div>
-        </div>
-      </div>`;
-  }).join('');
+  const panel = $('#dexPanel');
+  if (!grid || !panel) return;
 
-  grid.querySelectorAll('.dex-card').forEach((card) => {
-    card.addEventListener('click', () => openDetail(card.dataset.dex, true));
-  });
+  // tab 状态
+  const tabs = document.querySelectorAll('.dex-tab');
+  if (tabs) {
+    tabs.forEach((t) => {
+      t.classList.toggle('on', t.dataset.tab === dexTab);
+      t.onclick = () => { dexTab = t.dataset.tab; renderDex(); };
+    });
+  }
+
+  if (dexTab === 'mon') {
+    panel.hidden = true;
+    grid.hidden = false;
+    grid.innerHTML = DEX_ORDER.map((key) => {
+      const d = MONSTERS[key];
+      if (!d) return '';
+      return `
+        <div class="pick-card dex-card" data-dex="${key}">
+          <span class="pick-cost">${d.cost || '—'}</span>
+          <div class="pick-sprite">${sprite(key)}</div>
+          <div class="pick-bottom">
+            <div class="pick-row">
+              <span class="pick-name">${d.name}</span>
+            </div>
+            <div class="pick-sub">${d.sub}</div>
+            <div class="pick-tag">${d.overlord ? '豪强 · ' : ''}${d.typeName}</div>
+          </div>
+        </div>`;
+    }).join('');
+    grid.querySelectorAll('.dex-card').forEach((card) => {
+      card.addEventListener('click', () => openDetail(card.dataset.dex, true));
+    });
+    return;
+  }
+
+  grid.hidden = true;
+  panel.hidden = false;
+
+  if (dexTab === 'bond') {
+    panel.innerHTML = BONDS.map((b) => {
+      const effects = [];
+      if (b.all) effects.push(`全属性 +${b.all}%`);
+      if (b.def) effects.push(`防御 +${b.def}%`);
+      if (b.melee) effects.push(`格斗 +${b.melee}%`);
+      if (b.beam) effects.push(`光线 +${b.beam}%`);
+      if (b.takeLess) effects.push(`受伤 -${b.takeLess}%`);
+      if (b.squadDmg) effects.push(`战队伤害 +${b.squadDmg}%`);
+      if (b.ultraAll) effects.push(`奥特曼全属性 +${b.ultraAll}%`);
+      const members = b.members.map((k) => MONSTERS[k]?.name || k).join('、');
+      return `<div class="dex-block">
+        <h4>${b.name}</h4>
+        <p>${effects.join('，') || b.desc || ''}</p>
+        <div class="members">需要 ${b.need} 只：${members}</div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  if (dexTab === 'site') {
+    panel.innerHTML = Object.entries(SITES).map(([k, s]) => `<div class="dex-block">
+      <h4>${s.icon} ${s.name}</h4>
+      <p>${s.desc}</p>
+    </div>`).join('');
+  }
 }
 
 function openDex() {
@@ -3254,6 +3301,45 @@ function closeDetail() {
 }
 
 /* ---------------- 编成界面 ---------------- */
+/* 组队时检测新羁绊，弹横幅 */
+let lastBondIds = new Set();
+function checkBondBanner() {
+  const keys = selected;
+  const active = BONDS.filter((b) => b.members.filter((k) => keys.includes(k)).length >= b.need);
+  const newOnes = active.filter((b) => !lastBondIds.has(b.id));
+  lastBondIds = new Set(active.map((b) => b.id));
+  if (!newOnes.length) return;
+  const b = newOnes[newOnes.length - 1];
+  showBondBanner(b);
+}
+
+function showBondBanner(b) {
+  if (!document.body) return;
+  const el = document.getElementById('bondBanner');
+  const title = document.getElementById('bbTitle');
+  const desc = document.getElementById('bbDesc');
+  if (!el || !title || !desc) return;
+  title.textContent = `羁绊成立 · ${b.name}`;
+  const effects = [];
+  if (b.all) effects.push(`全属性 +${b.all}%`);
+  if (b.def) effects.push(`防御 +${b.def}%`);
+  if (b.melee) effects.push(`格斗 +${b.melee}%`);
+  if (b.beam) effects.push(`光线 +${b.beam}%`);
+  if (b.takeLess) effects.push(`受伤 -${b.takeLess}%`);
+  if (b.squadDmg) effects.push(`战队伤害 +${b.squadDmg}%`);
+  if (b.ultraAll) effects.push(`奥特曼全属性 +${b.ultraAll}%`);
+  desc.textContent = (effects.length ? effects.join('，') : (b.desc || ''));
+  el.hidden = false;
+  el.classList.remove('in');
+  void el.offsetWidth;
+  el.classList.add('in');
+  clearTimeout(globalThis.__bbTimer);
+  globalThis.__bbTimer = setTimeout(() => {
+    el.classList.remove('in');
+    setTimeout(() => { el.hidden = true; }, 400);
+  }, 1800);
+}
+
 function renderPick() {
   const grid = $('#pickGrid');
   if (!grid) return;
@@ -3263,14 +3349,35 @@ function renderPick() {
     banner.textContent = '已解锁：初代奥特曼（9）、小型威托（4）、威托（6）';
   }
 
-  grid.innerHTML = pickableKeys().map((key) => {
+  // 筛选栏
+  const filterBox = $('#pickFilter');
+  if (filterBox) {
+    const types = [
+      { key: 'all', label: '全部' },
+      { key: 'squad', label: '战队' },
+      { key: 'cosmosMan', label: '宇宙人' },
+      { key: 'cosmosBeast', label: '宇宙怪兽' },
+      { key: 'esper', label: '超能力怪兽' },
+      { key: 'earthMonster', label: '地球怪兽' },
+      { key: 'ultra', label: '奥特曼' },
+    ];
+    filterBox.innerHTML = types.map((t) =>
+      `<button class="filter-btn ${pickFilter === t.key ? 'on' : ''}" data-filter="${t.key}" type="button">${t.label}</button>`
+    ).join('');
+    filterBox.querySelectorAll('.filter-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        pickFilter = btn.dataset.filter;
+        renderPick();
+      });
+    });
+  }
+
+  const keys = pickableKeys().filter((k) => pickFilter === 'all' || MONSTERS[k]?.type === pickFilter);
+
+  grid.innerHTML = keys.map((key) => {
     const d = MONSTERS[key];
     if (!d) return '';
     const on = selected.includes(key);
-    const isOpen = expanded === key;
-    const ids = loadout[key] || defaultLoadout(key);
-    const pool = monPool(key);
-    const chosen = ids.map((id) => pool.find((x) => x.id === id)).filter(Boolean);
 
     return `
       <div class="pick-card ${on ? 'on' : ''}" data-key="${key}">
@@ -3283,6 +3390,7 @@ function renderPick() {
           <div class="pick-sub">${d.sub}</div>
           <div class="pick-tag">${d.overlord ? '豪强 · ' : ''}${d.typeName}</div>
         </div>
+        <button class="pick-detail-btn" data-detail="${key}" type="button">详细</button>
         ${on ? '<div class="pick-check">✓</div>' : ''}
       </div>
     `;
@@ -3335,7 +3443,21 @@ function skillPanel(key, pool, ids) {
 
 function bindPickEvents(grid) {
   grid.querySelectorAll('.pick-card').forEach((card) => {
-    card.addEventListener('click', () => openDetail(card.dataset.key));
+    card.addEventListener('click', (ev) => {
+      if (ev.target.closest('.pick-detail-btn')) return;
+      const key = card.dataset.key;
+      if (selected.includes(key)) selected = selected.filter((k) => k !== key);
+      else if (selected.length < 3) selected.push(key);
+      renderPick();
+      checkBondBanner();
+    });
+  });
+
+  grid.querySelectorAll('.pick-detail-btn').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      openDetail(btn.dataset.detail);
+    });
   });
 }
 
