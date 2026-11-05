@@ -2248,3 +2248,116 @@ body {
 /* 模式卡图标下的标题 */
 .mode-btn .mode-title { color: #16161a; }
 .mode-btn .mode-sub { color: #6a6c76; }
+
+
+/* ========== 对波具象化 ========== */
+.clash-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* 两道光束 */
+.cf-beam {
+  position: absolute;
+  top: 50%;
+  height: 26px;
+  border-radius: 999px;
+  transform: translateY(-50%);
+  opacity: 0;
+}
+
+.cf-left {
+  left: -10%;
+  width: 46%;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, #ffe0a0 30%, #ffb040 70%, #fff 100%);
+  box-shadow: 0 0 24px #ffb040, 0 0 60px rgba(255,176,64,.6);
+  animation: beamIn .26s cubic-bezier(.2,.9,.3,1) forwards;
+}
+
+.cf-right {
+  right: -10%;
+  width: 46%;
+  background: linear-gradient(270deg, rgba(255,255,255,0) 0%, #a0d8ff 30%, #4a9ad8 70%, #fff 100%);
+  box-shadow: 0 0 24px #4a9ad8, 0 0 60px rgba(74,154,216,.6);
+  animation: beamIn .26s cubic-bezier(.2,.9,.3,1) forwards;
+}
+
+@keyframes beamIn {
+  0%   { opacity: 0; transform: translateY(-50%) scaleX(.2); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(-50%) scaleX(1); }
+}
+
+/* 中心能量球 */
+.cf-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #fff 0%, #ffe8b0 25%, #ff9a30 55%, rgba(255,122,26,0) 75%);
+  animation: coreBurst .5s ease-out .24s forwards;
+}
+
+@keyframes coreBurst {
+  0%   { width: 0; height: 0; opacity: 0; }
+  40%  { width: 200px; height: 200px; opacity: 1; }
+  100% { width: 340px; height: 340px; opacity: 0; }
+}
+
+/* 冲击环 */
+.cf-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.9);
+  transform: translate(-50%, -50%) scale(.2);
+  opacity: 0;
+  animation: ringOut .55s ease-out .3s forwards;
+}
+
+@keyframes ringOut {
+  0%   { opacity: .95; transform: translate(-50%,-50%) scale(.2); border-width: 5px; }
+  100% { opacity: 0;   transform: translate(-50%,-50%) scale(7); border-width: 1px; }
+}
+
+/* 屏幕轻微震 */
+.clash-shake { animation: clashShake .34s ease-out .24s; }
+@keyframes clashShake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-5px, 3px); }
+  40% { transform: translate(4px, -3px); }
+  60% { transform: translate(-3px, 2px); }
+  80% { transform: translate(2px, -1px); }
+}
+
+/* 结果横幅 */
+.cf-result {
+  position: absolute;
+  left: 50%;
+  top: 26%;
+  transform: translate(-50%, -50%) scale(.6);
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #fff;
+  text-shadow: 0 0 18px rgba(255,122,26,.9), 0 4px 12px rgba(0,0,0,.8);
+  opacity: 0;
+  animation: resultPop .9s cubic-bezier(.2,.9,.3,1) .34s forwards;
+  white-space: nowrap;
+}
+
+@keyframes resultPop {
+  0%   { opacity: 0; transform: translate(-50%,-50%) scale(.5); }
+  35%  { opacity: 1; transform: translate(-50%,-50%) scale(1.12); }
+  70%  { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1.02); }
+}

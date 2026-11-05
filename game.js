@@ -1202,11 +1202,49 @@ function allinDmgEstimate(loser, winnerDmg, diff) {
   return myDmg * boost > winnerDmg;
 }
 
+/* ---------------- 对波具象化 ---------------- */
+function playClashFx(label) {
+  if (!document.body) return;
+  const fx = document.getElementById('clashFx');
+  if (!fx) return;
+
+  fx.hidden = false;
+  const beams = fx.querySelectorAll('.cf-beam');
+  const core = fx.querySelector('.cf-core');
+  const ring = fx.querySelector('.cf-ring');
+  const old = fx.querySelector('.cf-result');
+  if (old) old.remove();
+
+  for (const el of [core, ring, ...beams]) {
+    if (!el) continue;
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+  }
+
+  if (document.body) {
+    document.body.classList.remove('clash-shake');
+    void document.body.offsetWidth;
+    document.body.classList.add('clash-shake');
+    setTimeout(() => document.body.classList.remove('clash-shake'), 700);
+  }
+
+  if (label) {
+    const div = document.createElement('div');
+    div.className = 'cf-result';
+    div.textContent = label;
+    fx.appendChild(div);
+  }
+
+  setTimeout(() => { fx.hidden = true; }, 1500);
+}
+
 async function resolveClash(P, E, pMove, eMove) {
   const pMon = P.team[P.active];
   const eMon = E.team[E.active];
 
   log('双方同时放出光线 —— 对波！', 'sys');
+  playClashFx('');
 
   const pBaseCost = pMove.ep || 0;
   const eBaseCost = eMove.ep || 0;
@@ -1371,6 +1409,8 @@ async function resolveClash(P, E, pMove, eMove) {
   const winnerMon = finalLoserIsP ? eMon : pMon;
 
   loserMon.hp = Math.max(0, loserMon.hp - totalLoserDmg);
+  const fxLabel = finalLoserIsP ? '被压制' : '压制成功';
+  playClashFx(fxLabel);
   log(`　${loserMon.name} 吃下 ${totalLoserDmg} 伤害${tags.length ? '（' + tags.join('；') + '）' : ''}`, 'hit');
   flash(finalLoserIsP ? 'player' : 'enemy');
   floatText(finalLoserIsP ? 'player' : 'enemy', '-' + totalLoserDmg, 'dmg');
