@@ -1235,6 +1235,15 @@ function endTurnOnly(P, E) {
   // 教程：每回合推进一课
   if (state && state.mode === 'tutorial' && tutStep < TUT_SCRIPT.length) {
     advanceTutorial();
+  // 教程：每回合补满状态，保证下一课能顺利展示
+  if (state && state.mode === 'tutorial') {
+    for (const side of [state.player, state.enemy]) {
+      for (const m of side.team) {
+        m.ep = EP_MAX;
+        m.hp = m.maxHp;
+      }
+    }
+  }
   }
 }
 
@@ -3077,6 +3086,15 @@ function startTutorial() {
     const want = ['怪力', '一兆度火球', '杰顿屏障', '瞬间移动', '杰顿终极光线', '最终侵略兵器'];
     const picked = want.map((n) => jPool.find((mm) => mm.name === n)).filter(Boolean);
     if (picked.length) state.player.team[0].moves = picked;
+
+  // 教程里 EP / HP 不作为限制
+  for (const side of [state.player, state.enemy]) {
+    for (const m of side.team) {
+      m.ep = EP_MAX;
+      m.maxHp = Math.round(m.maxHp * 2);
+      m.hp = m.maxHp;
+    }
+  }
   }
 
   // 教程里双方都满血，杰顿加厚一点防止被打死
