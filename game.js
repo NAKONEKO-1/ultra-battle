@@ -1207,10 +1207,6 @@ async function playTurn(action) {
 
   await endTurnOnly(P, E);
 
-  // 教程：一回合结束推进一课
-  if (state && state.mode === 'tutorial' && tutStep < TUT_SCRIPT.length) {
-    advanceTutorial();
-  }
 }
 
 async function tickCooldowns(P, E) {
@@ -1236,6 +1232,10 @@ function endTurnOnly(P, E) {
   state.pendingSwitch = null;
   render();
   renderActions();
+  // 教程：每回合推进一课
+  if (state && state.mode === 'tutorial' && tutStep < TUT_SCRIPT.length) {
+    advanceTutorial();
+  }
 }
 
 function recordHistory(arr, action) {
@@ -2310,6 +2310,16 @@ function triggerOnDeath(dead, foe) {
 }
 
 function checkOver() {
+  // 教程里不结束战斗：把倒下的角色钉在 1 HP
+  if (state.mode === 'tutorial') {
+    for (const side of [state.player, state.enemy]) {
+      for (const m of side.team) {
+        if (m.hp <= 0) m.hp = 1;
+      }
+    }
+    return;
+  }
+
   if (state.over) return;
   const P = state.player;
   const E = state.enemy;
