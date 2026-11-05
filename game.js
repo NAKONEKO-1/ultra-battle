@@ -1203,7 +1203,35 @@ function allinDmgEstimate(loser, winnerDmg, diff) {
 }
 
 /* ---------------- 对波具象化 ---------------- */
-function playClashFx(label) {
+/* 必杀特写横幅 */
+function playUltBanner(mon, moveName, isPlayer) {
+  if (!document.body) return;
+  const box = document.getElementById('ultBanner');
+  const img = document.getElementById('ubImg');
+  const nameEl = document.getElementById('ubName');
+  const moveEl = document.getElementById('ubMove');
+  if (!box || !img || !nameEl || !moveEl) return;
+
+  const src = PORTRAIT[mon.key] || (mon.key === 'dada' ? PORTRAIT_DADA.A : null);
+  if (src) img.src = encodeURI(src);
+  else img.removeAttribute('src');
+  nameEl.textContent = mon.name;
+  moveEl.textContent = moveName;
+
+  box.classList.remove('side-player', 'side-enemy');
+  box.classList.add(isPlayer ? 'side-player' : 'side-enemy');
+  box.hidden = false;
+
+  // 重播动画
+  box.style.animation = 'none';
+  void box.offsetWidth;
+  box.style.animation = '';
+
+  clearTimeout(globalThis.__ubTimer);
+  globalThis.__ubTimer = setTimeout(() => { box.hidden = true; }, 1150);
+}
+
+function playClashFx(label, pSkill, eSkill) {
   if (!document.body) return;
   const fx = document.getElementById('clashFx');
   if (!fx) return;
@@ -1229,6 +1257,11 @@ function playClashFx(label) {
     setTimeout(() => document.body.classList.remove('clash-shake'), 700);
   }
 
+  const lL = document.getElementById('cfLabelL');
+  const lR = document.getElementById('cfLabelR');
+  if (lL) lL.textContent = pSkill || '';
+  if (lR) lR.textContent = eSkill || '';
+
   if (label) {
     const div = document.createElement('div');
     div.className = 'cf-result';
@@ -1244,7 +1277,7 @@ async function resolveClash(P, E, pMove, eMove) {
   const eMon = E.team[E.active];
 
   log('双方同时放出光线 —— 对波！', 'sys');
-  playClashFx('');
+  playClashFx('', pMove.name, eMove.name);
 
   const pBaseCost = pMove.ep || 0;
   const eBaseCost = eMove.ep || 0;
@@ -1620,6 +1653,11 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
   }
 
   log(`${sideName} · ${att.name} 使用 ${move.name}`, 'act');
+  // 必杀特写（对波时不会走到这里）
+  if (move.type === 'ult' && !move.selfDestruct) {
+    playUltBanner(att, move.name, S === state.player);
+  }
+
   // 音效：只有「斯派修姆光线」这一招播斯派修姆音
   if (move.name === '斯派修姆光线') {
     playSfx(SFX_MISC.spesium, VOL.ult);
