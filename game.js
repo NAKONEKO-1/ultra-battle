@@ -129,7 +129,7 @@ const MONSTERS = {
     beamM: { name: '磁力光线', power: 60, ep: 14, pull: 2, desc: '造成【牵引】' },
     counterA: { name: '钻沙', dodge: 55, ep: 5, vs: 'beam', accUpMelee: 75, desc: '使用后，巨颚命中率提高 75%' },
     counterB: { name: '硬化', dodge: 30, guard: 0.3, ep: 5, vs: 'melee', desc: '无明显效果' },
-    ult: { name: '砂尘暴', power: 230, ep: 30, acc: 74, autoField: '沙漠化', ultType: 'beam', desc: '使用时没有【沙漠化】领域，则先展开【沙漠化】领域，再使用大招' },
+    ult: { name: '砂尘暴', power: 230, ep: 30, acc: 74, autoField: '沙漠化', ultType: 'beam', noClash: true, desc: '使用时没有【沙漠化】领域，则先展开【沙漠化】领域，再使用大招' },
     field: { name: '沙漠化', ep: 8, kind: 'dodgeBoost', value: 15, turns: 3, desc: '展开沙漠地形，自身闪避 +15%，3 回合' },
     passive: { name: '砂岚', kind: 'fieldDodge', value: 12, desc: '场上存在【沙漠化】时，我方全队闪避 +12' },
   },
@@ -138,7 +138,7 @@ const MONSTERS = {
     id: 'redking', name: '雷德王', sub: '骷髅怪兽', type: 'earthMonster', typeName: '地球怪兽',
     hp: 140, atk: 105, def: 75, spd: 40, cost: 8,
     melee: { name: '铁拳', power: 70, ep: 8, desc: '无明显效果' },
-    beamM: { name: '投石', power: 55, ep: 14, combo: 75, desc: '无明显效果' },
+    beamM: { name: '投石', power: 55, ep: 14, combo: 75, breakable: 50, desc: '无明显效果' },
     counterA: { name: '咆哮', dodge: 40, ep: 5, vs: 'beam', roarAtk: 10, desc: '反制成功时，若对手是【怪兽】，则降低对手攻击力10%' },
     counterB: { name: '铁壁', dodge: 30, guard: 0.35, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '岩石崩落', power: 280, ep: 30, acc: 72, ultType: 'melee', desc: '无明显效果' },
@@ -213,7 +213,7 @@ const MONSTERS = {
     beamM: { name: '四次元光线', power: 67, ep: 9, drain: 9, extWarp: true, cooldown: 1, desc: '延长一回合四次元扭曲，冷却一回合' },
     counterA: { name: '四次元屏障', dodge: 62, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '超自然现象', dodge: 52, guard: 0.3, ep: 10, vs: 'melee', desc: '无明显效果' },
-    ult: { name: '四次元狂想', power: 122, ep: 37, acc: 100, opensWarp: true, ultType: 'beam', desc: '命中后展开四次元扭曲 2 回合' },
+    ult: { name: '四次元狂想', power: 122, ep: 37, acc: 100, opensWarp: true, ultType: 'beam', noClash: true, desc: '命中后展开四次元扭曲 2 回合' },
     field: { name: '四次元生物', ep: 15, kind: 'alwaysHit', turns: 2, desc: '所有伤害技能必定命中，2 回合' },
     passive: { name: '四次元扭曲', kind: 'warp', value: 60, desc: '大招命中后展开 2 回合，全队受到 <60 伤害无效化' },
   },
@@ -1087,10 +1087,10 @@ async function playTurn(action) {
 
   let pMustDefend = action.kind === 'switch' && !pFastSwitch;
 
-  const pMove = pStunned ? null
+  let pMove = pStunned ? null
     : (action.kind === 'move' ? action.move
       : action.kind === 'switch' && action.follow ? action.follow : null);
-  const eMove = eStunned ? null
+  let eMove = eStunned ? null
     : (eAction.kind === 'move' ? eAction.move
       : eAction.kind === 'switch' && eAction.follow ? eAction.follow : null);
 
@@ -1105,11 +1105,29 @@ async function playTurn(action) {
   const pOrb = pMove && pMove.orbFirst && pNow.orbReady;
   const eOrb = eMove && eMove.orbFirst && eNow.orbReady;
 
-  // 对波：双方都出光线，且双方都还没用掉对波机会
+  // ---- 对波判定 ----
+  const isMeleeUlt = (m) => m && m.type === 'ult' && m.ultType === 'melee';
+  const isNoClash = (m) => m && (m.noClash || m.selfBuff || (m.type === 'ult' && !m.ultType));
+  const pCanClash = isBeamMove(pMove) && !isNoClash(pMove);
+  const eCanClash = isBeamMove(eMove) && !isNoClash(eMove);
+
+  // 近战必杀 vs 光线：不进入对波，近战方必定后手 + 命中 -15%
+  const pMeleeUltVsBeam = isMeleeUlt(pMove) && isBeamMove(eMove);
+  const eMeleeUltVsBeam = isMeleeUlt(eMove) && isBeamMove(pMove);
+  if (pMeleeUltVsBeam) {
+    pMove = { ...pMove, acc: (pMove.acc || 100) - 15 };
+    log('　你的近战必杀对上了光线 —— 类型不对付，必定后手、命中 -15%', 'dim');
+  }
+  if (eMeleeUltVsBeam) {
+    eMove = { ...eMove, acc: (eMove.acc || 100) - 15 };
+    log('　对手的近战必杀对上了光线 —— 必定后手、命中 -15%', 'dim');
+  }
+
+  // 对波：双方都出可对波的光线，且双方都还没用掉对波机会
   const clashAllowed = !(pNow.buffs.clashSeen && eNow.buffs.clashSeen);
   if (clashAllowed
       && action.kind === 'move' && eAction.kind === 'move'
-      && isBeamMove(pMove) && isBeamMove(eMove)
+      && pCanClash && eCanClash
       && !pMeleeBlocked && !eMeleeBlocked) {
     await resolveClash(P, E, pMove, eMove);
     await endTurnOnly(P, E);
@@ -1122,7 +1140,9 @@ async function playTurn(action) {
 
   if (order.length === 2) {
     let pFirst;
-    if (pOrb && !eOrb) pFirst = true;
+    if (pMeleeUltVsBeam && !eMeleeUltVsBeam) pFirst = false;
+    else if (eMeleeUltVsBeam && !pMeleeUltVsBeam) pFirst = true;
+    else if (pOrb && !eOrb) pFirst = true;
     else if (eOrb && !pOrb) pFirst = false;
     else if (pNow.buffs.firstStrike) pFirst = true;
     else if (eNow.buffs.firstStrike) pFirst = false;
@@ -1288,8 +1308,9 @@ async function resolveClash(P, E, pMove, eMove) {
 
   const pRes = rollHit(pMon, eMon, pMove, eMove);
   const eRes = rollHit(eMon, pMon, eMove, pMove);
-  const D1 = pRes.dmg;
-  const D2 = eRes.dmg;
+  let D1 = pRes.dmg;
+  let D2 = eRes.dmg;
+
 
   // 任一方落空 → 不进入对波，按普通命中结算
   if (D1 === 0 || D2 === 0) {
@@ -1307,7 +1328,19 @@ async function resolveClash(P, E, pMove, eMove) {
     }
     render();
     await sleep(350);
+    checkOver();
+    return;
+  }
 
+  // 投石特例：对波时 50% 被对方的非投石光线击破，伤害归零
+  const isThrow = (m) => m && m.name === '投石';
+  if (isThrow(pMove) && !isThrow(eMove) && rnd() * 100 < 50) {
+    D1 = 0;
+    log('　投石被对方的光线击破 —— 我方这记落空', 'miss');
+  }
+  if (isThrow(eMove) && !isThrow(pMove) && rnd() * 100 < 50) {
+    D2 = 0;
+    log('　对方的投石被击破 —— 这记落空', 'miss');
   }
 
   // 进入对波：记录"参与前"状态，然后标记已参与
