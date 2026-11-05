@@ -117,7 +117,7 @@ const MONSTERS = {
     beamM: { name: '雾状麻醉液', power: 58, ep: 12, drain: 8, fx: 'stun', cooldown: 1, desc: '造成眩晕（1 回合无法行动），削减对方 8 EP，使用后冷却 1 回合' },
     counterA: { name: '粘液', dodge: 60, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '厚叶', dodge: 38, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
-    ult: { name: '巨大化', power: 0, ep: 28, acc: 100, selfBuff: true, desc: '对自己使用：全属性 +25%，受光线伤害 +15%，2 回合' },
+    ult: { name: '巨大化', power: 0, ep: 28, acc: 100, selfBuff: true, value: 25, beamHurt: 15, turns: 2, desc: '对自己使用：攻防速 +25%，受光线伤害 +15%，2 回合' },
     field: { name: '毒雾领域', ep: 7, kind: 'poisonField', value: 2, heal: 5, turns: 3, desc: '敌方中毒（每回合 -2 HP），我方恩泽（每回合 +5 HP），3 回合' },
     passive: { name: '再生', kind: 'regenFlat', value: 5, desc: '每次受伤回复 5 HP' },
   },
@@ -221,7 +221,7 @@ const MONSTERS = {
   dada: {
     id: 'dada', name: '达达', sub: '三面怪人', type: 'cosmosMan', typeName: '宇宙人',
     hp: 96, atk: 65, def: 60, spd: 75, cost: 4,
-    melee: { name: '背后偷袭', power: 45, ep: 4, desc: '使用隐身后，该技能命中率 +75%' },
+    melee: { name: '背后偷袭', power: 45, ep: 4, afterStealth: 75, desc: '使用隐身后，该技能命中率 +75%' },
     beamM: { name: '眼部射线', power: 60, ep: 10, drain: 2, desc: '削减对方 2 EP' },
     counterA: { name: '三面变化', dodge: 65, ep: 5, vs: 'beam', faces: true, desc: '随机获得 A/B/C 面相' },
     counterB: { name: '隐身', dodge: 70, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
@@ -909,6 +909,12 @@ function rollHit(att, def, move, defMove) {
     dodge = Math.min(95, dodge + antlar.passive.value);
   }
 
+  // 达达·背后偷袭：上一手用了隐身，则命中 +75（等价闪避 -75）
+  if (move.afterStealth && att.lastMoveName && att.lastMoveName.includes('隐身')) {
+    dodge = Math.max(0, dodge - move.afterStealth);
+    log(`　偷袭命中 +${move.afterStealth}%`, 'ep');
+  }
+
   // 命中加成统一穿透闪避（正数 = 降低对方闪避）
   const accMod = siteAccMod(att) + (att.buffs.accUp || 0);
   if (accMod) dodge = Math.max(0, dodge - accMod);
@@ -930,6 +936,9 @@ function rollHit(att, def, move, defMove) {
   if (att.counterBonus) dmg *= att.counterBonus;
   if (def.buffs.shrink) dmg *= 1.1;
   if (def.status.cut > 0) dmg *= 1.1;
+  // 巨大化：受光线伤害 +N%
+  if (def.buffs.beamHurt && move.type === 'beam') dmg *= 1 + def.buffs.beamHurt / 100;
+
   if (move.electric && defMove.immuneElectric) dmg = 0;
   if (att.passive?.kind === 'rage') dmg *= 1 + att.passive.value / 100;
   // 奥特曼彩色计时器：红区时攻防变化
@@ -1614,8 +1623,20 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
     att.buffs.cooldowns[cdKey] = move.cooldown;
   }
 
+  // 巨大化：自身增益
+  if (move.selfBuff && move.value) {
+    att.buffs.statMul = move.value;
+    att.buffs.beamHurt = move.beamHurt || 0;
+    att.buffs.growTurns = move.turns || 2;
+    log(`　${att.name} 巨大化！攻防速 +${move.value}%，受光线伤害 +${move.beamHurt || 0}%`, 'ep');
+    render();
+    await sleep(220);
+    return;
+  }
+
   if (move.type === 'stance') {
     log(`${sideName} · ${att.name} 使用 ${move.name}`, 'act');
+  att.lastMoveName = move.name;
     // 巴尔坦·分身术：使用即获得二重身
     if (move.useGives === 'double' && att.status.double <= 0) {
       att.status.double = 3;
@@ -2145,6 +2166,14 @@ function endOfTurn() {
       m.buffs.forceSlow = false;
     }
     if (m.buffs.absorbCd > 0) m.buffs.absorbCd--;
+    if (m.buffs.growTurns > 0) {
+      m.buffs.growTurns--;
+      if (m.buffs.growTurns <= 0) {
+        m.buffs.statMul = 0;
+        m.buffs.beamHurt = 0;
+        log(`${m.name} 巨大化结束`, 'dim');
+      }
+    }
     if (m.buffs.shrink > 0) m.buffs.shrink--;
     if (m.status.noMelee > 0) m.status.noMelee--;
     if (m.status.clamp > 0) m.status.clamp--;
