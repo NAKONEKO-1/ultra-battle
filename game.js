@@ -178,7 +178,7 @@ const MONSTERS = {
     counterA: { name: '挖地', dodge: 58, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '铁壁', dodge: 38, guard: 0.32, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '甩尾攻击', power: 255, ep: 28, acc: 76, fx: 'down', downChance: 75, ultType: 'melee', desc: '75% 使敌人倒地，倒地后连锁追击，每次伤害减半、追击概率 -25%' },
-    field: { name: '怪兽殿下', ep: 8, kind: 'secondWind', turns: 9, desc: '使用后，获得【二番战】，可以断尾失去大招，恢复50%HP' },
+    field: { name: '怪兽殿下', ep: 8, kind: 'secondWind', turns: 1, desc: '使用后，获得【二番战】，可以断尾失去大招，恢复50%HP' },
     passive: { name: '蓄能', kind: 'ultBoost', value: 15, desc: '光线命中后，下次必杀 +15%' },
   },
 
