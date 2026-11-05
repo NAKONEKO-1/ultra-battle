@@ -843,13 +843,14 @@ function rollHit(att, def, move, defMove) {
   }
 
   // 杰顿终极光线：反击斯派修姆光线时必定命中
-  const mustHit = move.mustHitVs && defMove && defMove.name === move.mustHitVs;
+  const __tutSilent = state && state.mode === 'tutorial' && currentTut() && currentTut().silent;
+  const mustHit = __tutSilent || (move.mustHitVs && defMove && defMove.name === move.mustHitVs);
   if (move.type === 'ult' && !move.selfDestruct) {
     const acc = (move.acc || 100) + (effSpd(att) - effSpd(def)) * 0.4
       + (move.type === 'melee' ? ab.meleeAcc : 0) + siteAccMod(att);
     if (!alwaysHit && !mustHit && rnd() * 100 > acc) return { dmg: 0, kind: 'miss', note: '必杀落空' };
   }
-  if (mustHit) log('　杰顿锁定斯派修姆光线 —— 必定命中', 'sys');
+  if (move.mustHitVs && defMove && defMove.name === move.mustHitVs) log('　杰顿锁定斯派修姆光线 —— 必定命中', 'sys');
 
   // 杰顿屏障：完全反弹八分光轮
   if (defMove.reflectUlt && move.name === defMove.reflectUlt) {
@@ -925,6 +926,10 @@ function rollHit(att, def, move, defMove) {
   const foeIsMelee = defMove && defMove.type === 'melee';
   const throwMustHit = move.counterMelee && foeIsMelee;
 
+  // 教程：silent 课必定命中，排除闪避随机性
+  const tutSilent = state && state.mode === 'tutorial' && currentTut() && currentTut().silent;
+  if (tutSilent) dodge = 0;
+
   // 闪避率统一上限 95%（避免 100% 绝对闪避）
   dodge = Math.min(95, dodge);
 
@@ -977,6 +982,14 @@ function rollHit(att, def, move, defMove) {
   // 双攻时慢的一方：破姿态伤害打八五折，避免被白打死
   if (dualBreak) dmg *= 0.85;
   if (inRedZone()) dmg *= 1.2;
+
+  // 教程：强制输赢的倍率
+  if (state && state.mode === 'tutorial') {
+    const cur = currentTut();
+    const attIsPlayer = state.player.team.includes(att);
+    if (cur && cur.enemyBoost && !attIsPlayer) dmg *= cur.enemyBoost;
+    if (cur && cur.playerBoost && attIsPlayer) dmg *= cur.playerBoost;
+  }
   dmg *= 0.9 + rnd() * 0.2;
   const sdm = siteDmgMod(att);
   if (sdm) dmg *= 1 + sdm / 100;
@@ -2984,83 +2997,94 @@ function closeDex() {
 /* 13 关脚本：每关只允许按一种技能，敌方行动写死 */
 const TUT_SCRIPT = [
   {
-    lesson: '格斗与破姿态',
-    hint: '对面正在凝聚光线。用【怪力】这个格斗技打过去 —— 攻击类型对不上对方的准备，就是「破姿态」，伤害会大幅提升。',
-    allow: ['怪力'],
-    enemy: '斯派修姆光线',
-    note: '破姿态让伤害翻了将近一倍。',
+    lesson: '破姿态',
+    hint: '奥特曼摆出了防御姿态——那是【奥特V字屏障】，专门挡格斗。但你用的是光线：类型对不上，就是「破姿态」，伤害 ×1.6。按【一兆度火球】。',
+    allow: ['一兆度火球'],
+    enemy: '奥特V字屏障',
+    note: '破姿态的判断不看招式大小，只看类型对不对得上。',
   },
   {
     lesson: '反制 · 挡光线',
-    hint: '奥特曼要靠光线吃饭了。用【杰顿屏障】——反制 A 专门挡光线，猜中能闪掉大部分伤害。',
+    hint: '这回他真的要放光线了。用【杰顿屏障】——反制 A 专门挡光线，猜中就能减伤。',
     allow: ['杰顿屏障'],
     enemy: '切割光线',
-    note: '反制 A 挡光线，反制 B 挡格斗，猜对才有用。',
+    silent: true,
+    note: '反制 A 挡光线、反制 B 挡格斗。猜错类型反而会露出破绽。',
   },
   {
     lesson: '反制 · 挡格斗',
-    hint: '这回他改用格斗了。换成【瞬间移动】，这是反制 B，专门挡格斗。',
+    hint: '他换回格斗了。切到【瞬间移动】，这是反制 B，挡格斗的。',
     allow: ['瞬间移动'],
     enemy: '手刀',
-    note: '同一个反制猜错类型，反而会露出破绽。',
+    silent: true,
+    note: '同一个反制猜错类型就没用。',
   },
   {
     lesson: '被动 · 光线吸收',
-    hint: '杰顿有个被动叫「光线吸收」：被光线打中会自动反击。用【瞬间移动】硬接一发试试。',
+    hint: '杰顿有个被动「光线吸收」：被光线打中会自动反击。用【瞬间移动】硬接一发。',
     allow: ['瞬间移动'],
-    enemy: '斯派修姆光线',
-    note: '这类被动不用你操作，条件一到就自己触发。',
+    enemy: '切割光线',
+    silent: true,
+    note: '这类被动不用操作，条件一到就触发。',
   },
   {
     lesson: '类型克制',
-    hint: '杰顿是宇宙怪兽，奥特曼是奥特曼属性 —— 属性之间有克制关系，克制时伤害 ×1.1。用【一兆度火球】打打看。',
+    hint: '杰顿是宇宙怪兽，奥特曼是奥特曼属性，属性之间有克制关系。用【一兆度火球】试试。',
     allow: ['一兆度火球'],
-    enemy: '八分光轮',
-    note: '克制链：宇宙人 > 全体怪兽；怪兽之间是宇宙怪兽 > 超能力怪兽 > 地球怪兽 > 宇宙怪兽。',
+    enemy: '光之国使者',
+    silent: true,
+    note: '克制链：宇宙人 > 全体怪兽；怪兽环：宇宙怪兽 > 超能力怪兽 > 地球怪兽 > 宇宙怪兽。',
   },
   {
     lesson: 'EP 与大招',
-    hint: 'EP 是放技能的资源，开局只有 30 点，每回合回 8 点。现在够了 —— 试试【杰顿终极光线】。',
+    hint: 'EP 是放技能的资源，平时开局只有 30 点。教程里给你拉满了——试试【杰顿终极光线】。',
     allow: ['杰顿终极光线'],
     enemy: '手刀',
-    note: 'EP 打空就只能跳过蓄能，所以大招要挑时机。',
+    silent: true,
+    note: '实战里 EP 紧张，大招要挑时机。',
   },
   {
     lesson: '对波 · 触发',
-    hint: '双方同一回合都出光线，就会「对波」—— 不比谁先打，直接拼这一下的伤害差。用【一兆度火球】。',
+    hint: '双方同一回合都出光线，就会「对波」——不比先后，直接拼这一下的伤害差。按【一兆度火球】。',
     allow: ['一兆度火球'],
-    enemy: '斯派修姆光线',
+    enemy: '切割光线',
+    silent: true,
     note: '对波前先掷命中，有一方落空的话对波不成立。',
   },
   {
-    lesson: '对波 · 输家的选择',
-    hint: '对波输了别慌。输家有三条路：硬吃、应急（展开光线反制，减半）、全力（耗尽 EP 赌翻盘）。这回合必须选【应急】。',
+    lesson: '对波 · 输家三选一',
+    hint: '这次你会输。输家有三条路：硬吃、应急（反制减半）、全力（耗尽 EP 赌翻盘）。选【应急】。',
     allow: ['一兆度火球'],
-    enemy: '斯派修姆光线',
+    enemy: '切割光线',
     forceClash: 'emergency',
-    note: '应急要花双倍的反制 EP，失败就跟硬吃一样。',
+    enemyBoost: 2.2,
+    silent: true,
+    note: '应急要花双倍反制 EP，失败就跟硬吃一样。',
   },
   {
     lesson: '对波 · 追加 EP',
-    hint: '这回你赢了。赢家可以「见好就收」，也可以追加 EP 再打一次。这回合必须选【追加】。',
+    hint: '这回你赢。赢家可以「见好就收」，也能追加 EP 再打一次。选【追加】。',
     allow: ['一兆度火球'],
     enemy: '切割光线',
     forceClash: 'spend',
-    note: '每个角色每场只有一次对波机会，用掉之后再撞光线就只是普通互殴。',
+    playerBoost: 2.2,
+    silent: true,
+    note: '每个角色每场只有一次对波机会。',
   },
   {
     lesson: '领域',
-    hint: '领域是持续几回合的场地效果，双方各开各的、互不覆盖。开一个【最终侵略兵器】看看。',
+    hint: '领域是持续几回合的场地效果，双方各开各的。开一个【最终侵略兵器】。',
     allow: ['最终侵略兵器'],
     enemy: '手刀',
+    silent: true,
     note: '屏幕中间会显示双方各自的领域和剩余回合。',
   },
   {
     lesson: '换人',
-    hint: '场上这只撑不住了可以换人，每队 3 次。这回合换【巴尔坦星人】上来。',
+    hint: '场上撑不住可以换人，每队 3 次。这回合换【巴尔坦星人】上来。',
     allow: ['__switch__'],
-    switchTo: 1,
     enemy: '手刀',
+    silent: true,
     note: '队伍总速度快的一方，换人后还能顺手打一下；慢的只能摆防御。',
   },
   {
@@ -3068,13 +3092,15 @@ const TUT_SCRIPT = [
     hint: '巴尔坦的【赤色冷冻光束】会让对手变慢。试试它。',
     allow: ['赤色冷冻光束'],
     enemy: '手刀',
-    note: '有些技能有冷却，用完之后要等几回合才能再放。',
+    silent: true,
+    note: '有些技能有冷却，用完要等几回合。',
   },
   {
     lesson: '毕业战',
-    hint: '前面教的都用上了。现在随便打 —— 打赢奥特曼就算毕业。',
+    hint: '前面教的都用上了。现在随便打。',
     allow: null,
     enemy: null,
+    silent: true,
     note: '',
   },
 ];
@@ -3181,6 +3207,16 @@ function applyTutorialLock() {
 }
 
 function advanceTutorial() {
+  // 教程：每课重置对波机会，保证对波课一定能触发
+  if (state) {
+    for (const side of [state.player, state.enemy]) {
+      for (const m of side.team) {
+        m.buffs.clashSeen = false;
+        m.buffs.clashUsed = false;
+        m.buffs.clashSpent = false;
+      }
+    }
+  }
   tutStep++;
   renderTutBar();
   if (tutStep >= TUT_SCRIPT.length) {
