@@ -78,7 +78,7 @@ const MONSTERS = {
     id: 'baltan2', name: '巴尔坦星人二世', sub: '宇宙忍者', type: 'cosmosMan', typeName: '宇宙人',
     hp: 105, atk: 82, def: 65, spd: 76, cost: 6,
     melee: { name: '冲刺钳击', power: 60, ep: 7, desc: '无明显效果' },
-    beamM: { name: '重力风暴', power: 75, ep: 11, drain: 6, fx: 'noMelee2', desc: '造成击退：敌方无法使用格斗技能两回合' },
+    beamM: { name: '重力风暴', power: 75, ep: 11, drain: 8, fx: 'noMelee', desc: '造成击退（禁格斗 2 回合），并削减对方 8 EP' },
     counterA: { name: '光波屏障', dodge: 70, ep: 5, vs: 'beam', immuneUlt: '八分光轮', desc: '使用时，免疫【八分光轮】' },
     counterB: { name: '瞬间移动能力', dodge: 50, guard: 0.2, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '蓝色破坏闪光', power: 255, ep: 32, acc: 78, ultType: 'beam', desc: '无明显效果' },
@@ -90,7 +90,7 @@ const MONSTERS = {
     id: 'neronga', name: '内隆嘎', sub: '透明怪兽', type: 'earthMonster', typeName: '地球怪兽',
     hp: 122, atk: 84, def: 70, spd: 55, cost: 6,
     melee: { name: '舍身冲撞', power: 58, ep: 6, desc: '无明显效果' },
-    beamM: { name: '高压电击', power: 62, ep: 12, drain: 6, desc: '无明显效果' },
+    beamM: { name: '高压电击', power: 62, ep: 12, drain: 6, desc: '削减对方 6 EP' },
     counterA: { name: '透明化', dodge: 85, ep: 5, vs: 'beam', chargeDodge: 5, desc: '每一层【电流】 +5% 本技能的闪避率' },
     counterB: { name: '坚硬皮肤', dodge: 40, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '全身放电', power: 250, ep: 28, acc: 78, ultType: 'beam', desc: '无明显效果' },
@@ -105,7 +105,7 @@ const MONSTERS = {
     beamM: { name: '放射性射线', power: 66, ep: 14, desc: '无明显效果' },
     counterA: { name: '侧身', dodge: 55, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '粘液护体', dodge: 35, guard: 0.22, ep: 5, vs: 'melee', desc: '无明显效果' },
-    ult: { name: '原子爆炸', power: 350, ep: 60, acc: 100, selfDestruct: true, twoPhase: true, oncePerBattle: true, desc: 'EP≥60：350 伤害，保留 1 HP，无视闪避，减伤 10%；EP<60：消耗全部 EP，威力降为 175，可闪避，减伤 20%，不保留 HP' },
+    ult: { name: '原子爆炸', power: 350, ep: 60, acc: 100, selfDestruct: true, twoPhase: true, oncePerBattle: true, desc: '自爆技。EP≥60：350 伤害，保留 1 HP，无视闪避，减伤 10%；EP<60：消耗全部 EP，威力降为 175，可闪避，减伤 20%，不保留 HP' },
     field: { name: '原始恐怖', ep: 10, kind: 'typeBoost', types: ['earthMonster'], value: 10, turns: 2, desc: '全体地球怪兽伤害 +10%，2 回合' },
     passive: { name: '自毁', kind: 'bombDiscount', value: 30, desc: 'HP ≤ 30% 时，原子爆炸 EP 60 → 30' },
   },
@@ -114,7 +114,7 @@ const MONSTERS = {
     id: 'greenmons', name: '绿蒙斯', sub: '巨大植物', type: 'earthMonster', typeName: '地球怪兽',
     hp: 105, atk: 72, def: 58, spd: 65, cost: 5,
     melee: { name: '巨叶重击', power: 52, ep: 6, desc: '无明显效果' },
-    beamM: { name: '雾状麻醉液', power: 58, ep: 12, drain: 8, fx: 'stun', cooldown: 1, desc: '造成眩晕：接下来一回合无法行动，该技能使用后冷却一回合' },
+    beamM: { name: '雾状麻醉液', power: 58, ep: 12, drain: 8, fx: 'stun', cooldown: 1, desc: '造成眩晕（1 回合无法行动），削减对方 8 EP，使用后冷却 1 回合' },
     counterA: { name: '粘液', dodge: 60, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '厚叶', dodge: 38, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '巨大化', power: 0, ep: 28, acc: 100, selfBuff: true, desc: '对自己使用：全属性 +25%，受光线伤害 +15%，2 回合' },
@@ -138,7 +138,7 @@ const MONSTERS = {
     id: 'redking', name: '雷德王', sub: '骷髅怪兽', type: 'earthMonster', typeName: '地球怪兽',
     hp: 140, atk: 105, def: 75, spd: 40, cost: 8,
     melee: { name: '铁拳', power: 70, ep: 8, desc: '无明显效果' },
-    beamM: { name: '投石', power: 55, ep: 14, combo: 75, breakable: 50, desc: '无明显效果' },
+    beamM: { name: '投石', power: 55, ep: 14, combo: 75, breakable: 50, desc: '75% 概率连击一次；对波时 50% 被对方光线击破' },
     counterA: { name: '咆哮', dodge: 40, ep: 5, vs: 'beam', roarAtk: 10, desc: '反制成功时，若对手是【怪兽】，则降低对手攻击力10%' },
     counterB: { name: '铁壁', dodge: 30, guard: 0.35, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '岩石崩落', power: 280, ep: 30, acc: 72, ultType: 'melee', desc: '无明显效果' },
@@ -150,7 +150,7 @@ const MONSTERS = {
     id: 'zarab', name: '扎拉布星人', sub: '凶恶宇宙人', type: 'cosmosMan', typeName: '宇宙人',
     hp: 100, atk: 78, def: 60, spd: 75, cost: 6,
     melee: { name: '肘击', power: 56, ep: 6, desc: '无明显效果' },
-    beamM: { name: '高频波', power: 64, ep: 12, drain: 6, desc: '无明显效果' },
+    beamM: { name: '高频波', power: 64, ep: 12, drain: 6, desc: '削减对方 6 EP' },
     counterA: { name: '隐身', dodge: 45, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '飞行', dodge: 68, guard: 0.2, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '催眠光线', power: 175, ep: 26, acc: 80, fx: 'confuse', chance: 65, ultType: 'beam', desc: '65% 使敌人混乱：下一次攻击目标为自身' },
@@ -186,7 +186,7 @@ const MONSTERS = {
     id: 'mephilas', name: '美菲拉斯星人', sub: '恶劣宇宙人', type: 'cosmosMan', typeName: '宇宙人',
     hp: 120, atk: 92, def: 68, spd: 70, cost: 8,
     melee: { name: '抓投', power: 64, ep: 7, stunChance: 35, stunVs: ['cosmosMan', 'ultra'], desc: '对【宇宙人】、【奥特曼】时 35% 概率眩晕敌方' },
-    beamM: { name: '简易抓握光线', power: 68, ep: 12, drain: 8, clashBonus: 5, desc: '对波时，增加5点伤害' },
+    beamM: { name: '简易抓握光线', power: 68, ep: 12, drain: 8, clashBonus: 5, desc: '对波时 +5 伤害；命中削减对方 8 EP' },
     counterA: { name: '念力屏障', dodge: 62, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '瞬间移动', dodge: 40, guard: 0.3, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '双手光线', power: 245, ep: 30, acc: 78, clashBonus: 10, ultType: 'beam', desc: '对波时，增加10点伤害' },
@@ -210,7 +210,7 @@ const MONSTERS = {
     id: 'bullton', overlord: true, name: '布鲁顿', sub: '四次元怪兽', type: 'esper', typeName: '超能力怪兽',
     hp: 100, atk: 67, def: 72, spd: 78, cost: 7,
     melee: { name: '奇异闪光', power: 55, ep: 4, fx: 'noMelee2', desc: '造成浮空两回合，无法释放格斗技' },
-    beamM: { name: '四次元光线', power: 67, ep: 9, drain: 9, extWarp: true, cooldown: 1, desc: '延长一回合四次元扭曲，冷却一回合' },
+    beamM: { name: '四次元光线', power: 67, ep: 9, drain: 9, extWarp: true, cooldown: 1, desc: '延长一回合四次元扭曲，削减对方 9 EP，冷却 1 回合' },
     counterA: { name: '四次元屏障', dodge: 62, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '超自然现象', dodge: 52, guard: 0.3, ep: 10, vs: 'melee', desc: '无明显效果' },
     ult: { name: '四次元狂想', power: 122, ep: 37, acc: 100, opensWarp: true, ultType: 'beam', noClash: true, desc: '命中后展开四次元扭曲 2 回合' },
@@ -222,7 +222,7 @@ const MONSTERS = {
     id: 'dada', name: '达达', sub: '三面怪人', type: 'cosmosMan', typeName: '宇宙人',
     hp: 96, atk: 65, def: 60, spd: 75, cost: 4,
     melee: { name: '背后偷袭', power: 45, ep: 4, desc: '使用隐身后，该技能命中率 +75%' },
-    beamM: { name: '眼部射线', power: 60, ep: 10, drain: 2, desc: '无明显效果' },
+    beamM: { name: '眼部射线', power: 60, ep: 10, drain: 2, desc: '削减对方 2 EP' },
     counterA: { name: '三面变化', dodge: 65, ep: 5, vs: 'beam', faces: true, desc: '随机获得 A/B/C 面相' },
     counterB: { name: '隐身', dodge: 70, guard: 0.25, ep: 5, vs: 'melee', desc: '无明显效果' },
     ult: { name: '微缩化枪', power: 150, ep: 30, acc: 75, appliesShrink: true, ultType: 'beam', desc: '命中后缩小化 2 回合' },
@@ -234,7 +234,7 @@ const MONSTERS = {
     id: 'geronimon', name: '杰罗尼蒙', sub: '怪兽酋长', type: 'esper', typeName: '超能力怪兽',
     hp: 148, atk: 78, def: 50, spd: 65, cost: 8,
     melee: { name: '毒羽箭', power: 75, ep: 8, fx: 'poison', desc: '造成神经中毒：每回合 -2 HP，3 回合' },
-    beamM: { name: '反重力气体', power: 70, ep: 9, drain: 10, selfStun: true, desc: '被反制成功时，自身无法行动一回合' },
+    beamM: { name: '反重力气体', power: 70, ep: 9, drain: 9, desc: '削减对方 9 EP；被反制成功时自身 1 回合无法行动' },
     counterA: { name: '羽箭防御', dodge: 60, ep: 5, vs: 'beam', desc: '无明显效果' },
     counterB: { name: '替死鬼', dodge: 0, guard: 0, ep: 10, vs: 'melee', borrowCounter: true, desc: '借用队友最高防的反制 B' },
     ult: { name: '羽箭风暴', power: 185, ep: 28, acc: 65, chase: '毒羽箭', chaseTable: [75, 45, 15], chasePower: [75, 50, 25], ultType: 'beam', desc: '造成伤害后 75%/45%/15% 连续追击一次 75%/50%/25% 的毒羽箭' },
@@ -1871,6 +1871,12 @@ async function execMove(S, T, move, foeMove, activeAtStart) {
       target.status.stun = 1;
       log(`　${target.name} 被摔晕，下回合无法行动`, 'sys');
     }
+  }
+
+  // 削 EP：命中后削减对方 EP
+  if (move.drain && target === def && target.hp > 0) {
+    target.ep = Math.max(0, target.ep - move.drain);
+    log(`　${target.name} EP -${move.drain}`, 'ep');
   }
 
   if (move.fx && target === def) applyFx(target, move, att);
