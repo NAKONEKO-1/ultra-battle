@@ -1633,6 +1633,20 @@ function renderClash() {
     <div class="clash-btns">${btns.join('')}</div>
   `;
 
+  // 教程：只有指定选项可点
+  if (state.mode === 'tutorial' && c.tutForce) {
+    const map = {
+      tank: 'clashTank', emergency: 'clashEmg', allin: 'clashAllin',
+      spend: 'clashSpend', pass: 'clashPass',
+    };
+    for (const [key, id] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (key === c.tutForce) { el.classList.add('tut-target'); }
+      else { el.disabled = true; el.classList.add('tut-locked'); }
+    }
+  }
+
   const pick = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('click', () => {
@@ -3072,6 +3086,7 @@ const TUT_SCRIPT = [
     lesson: 'EP 与大招',
     hint: 'EP 是放技能的资源，实战里开局只有 30 点。教程里给你拉满了——试试【杰顿终极光线】。',
     allow: ['杰顿终极光线'],
+    ultBanner: '杰顿终极光线',
     enemyLine: '敌 · 初代奥特曼 使用 手刀（格斗）',
     playerLine: '你 · 杰顿 使用 杰顿终极光线（必杀 · 消耗 32 EP）',
     resultLines: [
@@ -3288,6 +3303,21 @@ function applyTutorialLock() {
 }
 
 /* 教程专用结算：一切按脚本走，不触碰正常战斗 */
+/* 教程对波选择：只允许指定选项 */
+function tutClashChoice(cur) {
+  return new Promise((resolve) => {
+    if (!document.body) { resolve(cur.forceClash); return; }
+    state.clash = {
+      diff: Math.abs((cur.clash?.you || 0) - (cur.clash?.foe || 0)),
+      isWinner: (cur.clash?.you || 0) > (cur.clash?.foe || 0),
+      opts: { emergency: true, allin: true, spend: true },
+      tutForce: cur.forceClash,
+      resolve,
+    };
+    renderClash();
+  });
+}
+
 async function tutPlay(action) {
   const cur = currentTut();
   if (!cur) return;
@@ -3319,10 +3349,20 @@ async function tutPlay(action) {
 
   await sleep(200);
 
-  // 对波特效
+  // 必杀特写
+  if (cur.ultBanner) {
+    playUltBanner(P.team[P.active], cur.ultBanner, true);
+    await sleep(700);
+  }
+
+  // 对波：先播碰撞，再让玩家选
   if (cur.clash) {
     playClashFx('', '一兆度火球', '切割光线');
-    await sleep(400);
+    await sleep(500);
+    if (cur.forceClash) {
+      const choice = await tutClashChoice(cur);
+      cur.__picked = choice;
+    }
   }
 
   // 结果日志
