@@ -1013,6 +1013,15 @@ function fieldBoost(att, move) {
 /* ---------------- 一回合 ---------------- */
 async function playTurn(action) {
   if (!state || state.busy || state.over) return;
+  // 教程：只允许当前课指定的技能
+  if (state && state.mode === 'tutorial' && action.kind === 'move') {
+    const cur = currentTut();
+    if (cur && cur.allow && !cur.allow.some((a) => action.move && action.move.name.includes(a))) {
+      tutReject();
+      return;
+    }
+  }
+
   state.busy = true;
   renderActions();
 
@@ -1028,7 +1037,17 @@ async function playTurn(action) {
     log(`你 · ${pMon.name} 眩晕中，这回合无法行动`, 'dim');
   }
 
-  const eAction = aiChoose(E, P);
+  let eAction;
+  {
+    const cur = (state && state.mode === 'tutorial') ? currentTut() : null;
+    if (cur && cur.enemy) {
+      const em = E.team[E.active];
+      const forced = em.moves.find((mm) => mm.name === cur.enemy);
+      eAction = forced ? { kind: 'move', move: forced } : aiChoose(E, P);
+    } else {
+      eAction = aiChoose(E, P);
+    }
+  }
   recordHistory(state.playerHistory, action);
   recordHistory(state.enemyHistory, eAction);
 
@@ -1187,6 +1206,11 @@ async function playTurn(action) {
   }
 
   await endTurnOnly(P, E);
+
+  // 教程：一回合结束推进一课
+  if (state && state.mode === 'tutorial' && tutStep < TUT_SCRIPT.length) {
+    advanceTutorial();
+  }
 }
 
 async function tickCooldowns(P, E) {
@@ -1513,6 +1537,13 @@ async function resolveClash(P, E, pMove, eMove) {
 }
 
 function askClashChoice(diff, isWinner, opts) {
+  // 教程：强制指定选项
+  if (state && state.mode === 'tutorial') {
+    const cur = currentTut();
+    if (cur && cur.forceClash) {
+      return Promise.resolve(cur.forceClash);
+    }
+  }
   return new Promise((resolve) => {
     if (!document.body) {
       // 测试环境：输家默认硬吃，赢家默认不追加
@@ -2706,6 +2737,7 @@ function renderActions() {
   `;
   skip.addEventListener('click', () => playTurn({ kind: 'skip' }));
   host.appendChild(skip);
+  applyTutorialLock();
 }
 
 function addCancel(box) {
@@ -2908,120 +2940,215 @@ function closeDex() {
 
 
 /* ---------------- 教程 ---------------- */
-const TUT_STEPS = [
+/* ---------------- 实战教程 ---------------- */
+
+/* 13 关脚本：每关只允许按一种技能，敌方行动写死 */
+const TUT_SCRIPT = [
   {
-    title: '主界面',
-    text: '四个入口：怪兽对战是 3v3 打 AI；侵略地球要连打三轮，最后对初代奥特曼；图鉴能查所有角色和技能；教程就是这里。',
-    target: null,
+    lesson: '格斗与破姿态',
+    hint: '对面正在凝聚光线。用【怪力】这个格斗技打过去 —— 攻击类型对不上对方的准备，就是「破姿态」，伤害会大幅提升。',
+    allow: ['怪力'],
+    enemy: '斯派修姆光线',
+    note: '破姿态让伤害翻了将近一倍。',
   },
   {
-    title: '你的怪兽',
-    text: '左边是你出场的怪兽。名字下面是它的被动，会自动触发，不用你操作。HP 打空就倒下，倒下后自动换上下一只。',
-    target: '#playerSprite',
+    lesson: '反制 · 挡光线',
+    hint: '奥特曼要靠光线吃饭了。用【杰顿屏障】——反制 A 专门挡光线，猜中能闪掉大部分伤害。',
+    allow: ['杰顿屏障'],
+    enemy: '切割光线',
+    note: '反制 A 挡光线，反制 B 挡格斗，猜对才有用。',
   },
   {
-    title: '技能的五种类型',
-    text: '格斗（橙金）、光线（蓝）、姿态（青绿，也就是反制）、大招（橙红）、领域（紫）。姿态分反制A和反制B，卡片上会写清楚挡的是哪一类。',
-    target: '#actions',
+    lesson: '反制 · 挡格斗',
+    hint: '这回他改用格斗了。换成【瞬间移动】，这是反制 B，专门挡格斗。',
+    allow: ['瞬间移动'],
+    enemy: '手刀',
+    note: '同一个反制猜错类型，反而会露出破绽。',
   },
   {
-    title: '反制的博弈',
-    text: '反制A专门挡光线，反制B专门挡格斗。猜对了能闪掉大部分伤害，猜错就露破绽。这是每回合要赌的东西。',
-    target: '#actions',
+    lesson: '被动 · 光线吸收',
+    hint: '杰顿有个被动叫「光线吸收」：被光线打中会自动反击。用【瞬间移动】硬接一发试试。',
+    allow: ['瞬间移动'],
+    enemy: '斯派修姆光线',
+    note: '这类被动不用你操作，条件一到就自己触发。',
   },
   {
-    title: '破姿态',
-    text: '攻击类型和对方反制对不上，就是「破姿态」，伤害 ×1.6。双方都出攻击、类型又不同时，速度快的一方先出手，也能吃到这个优势。',
-    target: '#actions',
+    lesson: '类型克制',
+    hint: '杰顿是宇宙怪兽，奥特曼是奥特曼属性 —— 属性之间有克制关系，克制时伤害 ×1.1。用【一兆度火球】打打看。',
+    allow: ['一兆度火球'],
+    enemy: '八分光轮',
+    note: '克制链：宇宙人 > 全体怪兽；怪兽之间是宇宙怪兽 > 超能力怪兽 > 地球怪兽 > 宇宙怪兽。',
   },
   {
-    title: 'EP 是资源',
-    text: '放技能要消耗 EP。开局只有 30 点，每回合自然回 8 点，格斗命中还能再回 5~8 点。大招通常要攒两三回合才放得出。',
-    target: '#playerEpBar',
+    lesson: 'EP 与大招',
+    hint: 'EP 是放技能的资源，开局只有 30 点，每回合回 8 点。现在够了 —— 试试【杰顿终极光线】。',
+    allow: ['杰顿终极光线'],
+    enemy: '手刀',
+    note: 'EP 打空就只能跳过蓄能，所以大招要挑时机。',
   },
   {
-    title: '对波 · 怎么触发',
-    text: '双方同一回合都出光线（含光线必杀）时进入对波。但先掷命中——只要有一方落空，对波就不成立，按普通命中结算。所以低命中的大招拿来对波是赌博。',
-    target: '#actions',
+    lesson: '对波 · 触发',
+    hint: '双方同一回合都出光线，就会「对波」—— 不比谁先打，直接拼这一下的伤害差。用【一兆度火球】。',
+    allow: ['一兆度火球'],
+    enemy: '斯派修姆光线',
+    note: '对波前先掷命中，有一方落空的话对波不成立。',
   },
   {
-    title: '对波 · 输家的三个选择',
-    text: '看完双方伤害后，输家选：①硬吃差値；②应急——展开光线反制技，扣双倍 EP，闪避成功可减掉对方一半原伤害，失败照样吃满额差値；③全力——耗尽全部 EP，自己伤害最多翻倍，但下一回合必定后手且不回 EP。',
-    target: '#clashBox',
+    lesson: '对波 · 输家的选择',
+    hint: '对波输了别慌。输家有三条路：硬吃、应急（展开光线反制，减半）、全力（耗尽 EP 赌翻盘）。这回合必须选【应急】。',
+    allow: ['一兆度火球'],
+    enemy: '斯派修姆光线',
+    forceClash: 'emergency',
+    note: '应急要花双倍的反制 EP，失败就跟硬吃一样。',
   },
   {
-    title: '对波 · 赢家的选择',
-    text: '赢家可以「见好就收」，也可以追加 EP 再多打一次伤害。注意：每个角色每场只有一次对波机会，用掉之后再撞光线就只是普通互殴。',
-    target: '#clashBox',
+    lesson: '对波 · 追加 EP',
+    hint: '这回你赢了。赢家可以「见好就收」，也可以追加 EP 再打一次。这回合必须选【追加】。',
+    allow: ['一兆度火球'],
+    enemy: '切割光线',
+    forceClash: 'spend',
+    note: '每个角色每场只有一次对波机会，用掉之后再撞光线就只是普通互殴。',
   },
   {
-    title: '领域（双方独立）',
-    text: '领域是持续几回合的场地效果，双方各开各的、互不覆盖。屏幕中间会同时显示两个领域和剩余回合。',
-    target: '#fieldBox',
+    lesson: '领域',
+    hint: '领域是持续几回合的场地效果，双方各开各的、互不覆盖。开一个【最终侵略兵器】看看。',
+    allow: ['最终侵略兵器'],
+    enemy: '手刀',
+    note: '屏幕中间会显示双方各自的领域和剩余回合。',
   },
   {
-    title: '场地',
-    text: '每局开场会随机一个场地：城市、山野、海洋、宇宙。它们会改命中、伤害或血量，选中角色前先看一眼左上角。',
-    target: '#siteBox',
+    lesson: '换人',
+    hint: '场上这只撑不住了可以换人，每队 3 次。这回合换【巴尔坦星人】上来。',
+    allow: ['__switch__'],
+    switchTo: 1,
+    enemy: '手刀',
+    note: '队伍总速度快的一方，换人后还能顺手打一下；慢的只能摆防御。',
   },
   {
-    title: '类型克制',
-    text: '宇宙人克全体怪兽；怪兽之间是环：宇宙怪兽 → 超能力怪兽 → 地球怪兽 → 宇宙怪兽，克制时 1.1 倍。带「豪强」标签的角色对自己克制的目标再多 0.2。',
-    target: '#enemyType',
+    lesson: '状态与冷却',
+    hint: '巴尔坦的【赤色冷冻光束】会让对手变慢。试试它。',
+    allow: ['赤色冷冻光束'],
+    enemy: '手刀',
+    note: '有些技能有冷却，用完之后要等几回合才能再放。',
   },
   {
-    title: '编成与羁绊',
-    text: '队伍 3 只，编成点数上限 20。某些组合凑齐会触发羁绊加成，编成界面会提示。凑好队伍就开打吧。',
-    target: '#enemySprite',
+    lesson: '毕业战',
+    hint: '前面教的都用上了。现在随便打 —— 打赢奥特曼就算毕业。',
+    allow: null,
+    enemy: null,
+    note: '',
   },
 ];
 
-function clearTutHighlight() {
-  document.querySelectorAll('.tut-highlight').forEach((el) => el.classList.remove('tut-highlight'));
+let tutStep = 0;
+
+function tutorialActive() {
+  return state && state.mode === 'tutorial' && tutStep < TUT_SCRIPT.length;
 }
 
-function showTutStep(i) {
-  const overlay = $('#tutOverlay');
-  if (!overlay) return;
-  clearTutHighlight();
-  if (i >= TUT_STEPS.length) {
-    overlay.hidden = true;
-    if (tutorialPending) beginTutorialBattle();
-    return;
-  }
-  const step = TUT_STEPS[i];
-  $('#tutStep').textContent = (i + 1) + ' / ' + TUT_STEPS.length;
-  $('#tutTitle').textContent = step.title;
-  $('#tutText').textContent = step.text;
-  overlay.hidden = false;
-  const target = step.target ? $(step.target) : null;
-  if (target) target.classList.add('tut-highlight');
-  $('#tutNext').textContent = i === TUT_STEPS.length - 1 ? '开始战斗' : '下一步';
-  $('#tutNext').onclick = () => showTutStep(i + 1);
+function currentTut() {
+  return TUT_SCRIPT[tutStep] || null;
 }
-
-let tutorialPending = false;
 
 function startTutorial() {
-  state = null;
-  tutorialPending = true;
-  $('#modeSelect').hidden = true;
-  $('#dex').hidden = true;
-  $('#pick').hidden = true;
-  $('#battle').hidden = true;
-  showTutStep(0);
-}
+  tutStep = 0;
+  const keys = ['zetton', 'baltan', 'redking'];
+  // 固定奥特曼带齐教程需要的技能
+  loadout['ultraman'] = ['ultraman:p11', 'ultraman:p3', 'ultraman:p0', 'ultraman:p10'];
+  loadout['mephilas'] = ['mephilas:melee', 'mephilas:beam', 'mephilas:cA', 'mephilas:ult'];
+  loadout['antlar'] = ['antlar:melee', 'antlar:beam', 'antlar:cA', 'antlar:ult'];
 
-/* 教程讲完后才真正进入战斗 */
-function beginTutorialBattle() {
-  tutorialPending = false;
-  $('#battle').hidden = false;
-  if (document.body) document.body.classList.add('in-battle');
-  startGame(['bemular'], ['neronga'], 'tutorial');
-  for (const m of state.enemy.team) {
-    m.maxHp = Math.round(m.maxHp * 0.45);
+  const foe = ['ultraman', 'mephilas', 'antlar'];
+  startGame(keys, foe, 'tutorial');
+
+  // 教程里给杰顿配齐 6 个技能（绕过 4 格限制）
+  {
+    const jPool = monPool('zetton');
+    const want = ['怪力', '一兆度火球', '杰顿屏障', '瞬间移动', '杰顿终极光线', '最终侵略兵器'];
+    const picked = want.map((n) => jPool.find((mm) => mm.name === n)).filter(Boolean);
+    if (picked.length) state.player.team[0].moves = picked;
+  }
+
+  // 教程里双方都满血，杰顿加厚一点防止被打死
+  for (const m of state.player.team) {
+    m.maxHp = Math.round(m.maxHp * 1.6);
     m.hp = m.maxHp;
   }
+  for (const m of state.enemy.team) {
+    m.maxHp = Math.round(m.maxHp * 0.8);
+    m.hp = m.maxHp;
+  }
+  renderTutBar();
+  const skip = document.getElementById('tutSkip');
+  if (skip) {
+    skip.hidden = false;
+    skip.onclick = () => endTutorial();
+  }
+}
+
+function renderTutBar() {
+  const bar = document.getElementById('tutBar');
+  if (!bar) return;
+  const cur = currentTut();
+  if (!cur) { bar.hidden = true; return; }
+  bar.hidden = false;
+  bar.innerHTML = `<span class="tb-num">第 ${tutStep + 1} / ${TUT_SCRIPT.length} 课</span>
+    <span class="tb-name">${cur.lesson}</span>
+    <span class="tb-hint">${cur.hint}</span>`;
+}
+
+function tutAllows(moveName) {
+  const cur = currentTut();
+  if (!cur || !cur.allow) return true;
+  return cur.allow.includes(moveName);
+}
+
+function tutReject(msg) {
+  const bar = document.getElementById('tutBar');
+  if (!bar) return;
+  bar.classList.add('deny');
+  setTimeout(() => bar.classList.remove('deny'), 320);
+}
+
+/* 教程：禁用非当前课允许的技能 */
+function applyTutorialLock() {
+  if (!state || state.mode !== 'tutorial') return;
+  const cur = currentTut();
+  if (!cur) return;
+  const box = document.getElementById('actions');
+  if (!box) return;
+  const btns = box.querySelectorAll('.move');
+  btns.forEach((btn) => {
+    const nameEl = btn.querySelector('.move-name');
+    const label = nameEl ? nameEl.textContent.replace(/^换上\s*/, '').trim() : '';
+    const isSwitch = btn.className.includes('m-switch');
+    const allowList = cur.allow;
+    if (!allowList) return;
+    let allowed = false;
+    if (isSwitch) allowed = allowList.includes('__switch__');
+    else allowed = allowList.some((a) => label.includes(a));
+    btn.classList.toggle('tut-locked', !allowed);
+    btn.classList.toggle('tut-target', allowed);
+  });
+}
+
+function advanceTutorial() {
+  tutStep++;
+  renderTutBar();
+  if (tutStep >= TUT_SCRIPT.length) {
+    endTutorial();
+  }
+}
+
+function endTutorial() {
+  tutStep = TUT_SCRIPT.length;
+  const bar = document.getElementById('tutBar');
+  if (bar) bar.hidden = true;
+  state = null;
+  $('#battle').hidden = true;
+  $('#modeSelect').hidden = false;
+  if (document.body) document.body.classList.remove('in-battle');
+  localStorage.setItem('ultra_tut_done', '1');
 }
 
 
@@ -3515,7 +3642,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 if (typeof window !== 'undefined') {
   window.__TEST__ = {
-    startGame, startTutorial, showTutStep, playTurn, aiChoose, getState: () => state, MONSTERS, TEAM_COST, monPool, MUTEX,
+    startGame, startTutorial, playTurn, aiChoose, getState: () => state, MONSTERS, TEAM_COST, monPool, MUTEX,
     SFX, SFX_MISC, VOL, playSfx, playMonCry, makeMon, rollHit, applyFx, execMove, resolveClash, effAtk, effDef, effSpd, typeMult, fieldBoost, freshStatus, freshBuffs, COMMON, MAX_TIMER,
     BONDS, PASSIVES_REF: null,
     setLoadout: (key, ids) => { loadout[key] = ids; },

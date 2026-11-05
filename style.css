@@ -2686,3 +2686,94 @@ body {
   font-size: 11px;
   color: #8a8c96;
 }
+
+
+/* ========== 教程提示条 ========== */
+.tut-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 18px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  border: 2px solid #ffb040;
+  background: linear-gradient(135deg, #fff8ec, #fff0d8);
+  box-shadow: 0 0 24px rgba(255,176,64,.35);
+  transition: transform .12s, box-shadow .12s;
+}
+
+.tut-bar.deny {
+  animation: tutDeny .32s ease-out;
+  border-color: #e03030;
+  box-shadow: 0 0 24px rgba(224,48,48,.5);
+}
+
+@keyframes tutDeny {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.tb-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #a8480c;
+  background: #ffe0a8;
+  border-radius: 6px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+.tb-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #16161a;
+  white-space: nowrap;
+}
+
+.tb-hint {
+  font-size: 13px;
+  color: #4a3c2c;
+  line-height: 1.6;
+  flex: 1;
+  min-width: 200px;
+}
+
+/* 教程中被禁用的技能按钮 */
+.move.tut-locked {
+  opacity: .32;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
+/* 教程中要按的技能脉冲高亮 */
+.move.tut-target {
+  animation: tutPulse 1.2s ease-in-out infinite;
+  border-color: #ff7a1a !important;
+  box-shadow: 0 0 0 3px rgba(255,122,26,.35), 0 0 22px rgba(255,122,26,.5) !important;
+}
+
+@keyframes tutPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+
+/* 跳过按钮 */
+.tut-skip {
+  position: fixed;
+  right: 18px;
+  top: 18px;
+  z-index: 98;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #d0d2da;
+  background: rgba(255,255,255,.92);
+  color: #6a6c76;
+  cursor: pointer;
+}
+
+.tut-skip:hover { border-color: #e03030; color: #e03030; }
