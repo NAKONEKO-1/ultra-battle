@@ -53,7 +53,13 @@
       <button id="dexBack" class="back-btn" type="button">← 返回</button>
       <span class="dex-title">图鉴</span>
     </div>
+    <div class="dex-tabs" id="dexTabs">
+      <button class="dex-tab on" data-tab="mon" type="button">角色</button>
+      <button class="dex-tab" data-tab="bond" type="button">羁绊</button>
+      <button class="dex-tab" data-tab="site" type="button">场地</button>
+    </div>
     <div class="pick-grid" id="dexGrid"></div>
+    <div class="dex-panel" id="dexPanel" hidden></div>
   </section>
 
   <!-- 选人 -->
@@ -73,6 +79,7 @@
 
     <div class="unlock-note" id="unlockNote" hidden></div>
 
+    <div class="pick-filter" id="pickFilter"></div>
     <div class="pick-grid" id="pickGrid"></div>
 
     <button class="start-btn" id="startBtn" type="button" disabled>还要选 3 只</button>
@@ -210,6 +217,6 @@
 
 </div>
 
-<script src="game.js?v=38"></script>
+<script src="game.js?v=39"></script>
 </body>
 </html>
