@@ -1025,6 +1025,11 @@ function fieldBoost(att, move) {
 
 /* ---------------- 一回合 ---------------- */
 async function playTurn(action) {
+  // 教程：完全独立的一套流程，不碰任何战斗逻辑
+  if (state && state.mode === 'tutorial') {
+    return tutPlay(action);
+  }
+
   if (!state || state.busy || state.over) return;
   // 教程：只允许当前课指定的技能
   if (state && state.mode === 'tutorial' && action.kind === 'move') {
@@ -2998,110 +3003,186 @@ function closeDex() {
 const TUT_SCRIPT = [
   {
     lesson: '破姿态',
-    hint: '奥特曼摆出了防御姿态——那是【奥特V字屏障】，专门挡格斗。但你用的是光线：类型对不上，就是「破姿态」，伤害 ×1.6。按【一兆度火球】。',
+    hint: '奥特曼摆出了【奥特V字屏障】——那是反制 B，专门挡格斗。但你用的是光线：类型对不上，就叫「破姿态」，伤害 ×1.6。按【一兆度火球】。',
     allow: ['一兆度火球'],
-    enemy: '奥特V字屏障',
-    note: '破姿态的判断不看招式大小，只看类型对不对得上。',
+    enemyLine: '敌 · 初代奥特曼 使用 奥特V字屏障（反制B · 挡格斗）',
+    playerLine: '你 · 杰顿 使用 一兆度火球（光线）',
+    resultLines: [
+      ['　攻击类型与对方反制不匹配 —— 破姿态！伤害 ×1.6', 'sys'],
+      ['　初代奥特曼 -34 HP', 'hit'],
+    ],
+    dmgEnemy: 34,
+    dmgPlayer: 0,
   },
   {
     lesson: '反制 · 挡光线',
-    hint: '这回他真的要放光线了。用【杰顿屏障】——反制 A 专门挡光线，猜中就能减伤。',
+    hint: '这回他真的放光线了。用【杰顿屏障】——反制 A 专门挡光线，猜中就能大幅减伤。',
     allow: ['杰顿屏障'],
-    enemy: '切割光线',
-    silent: true,
-    note: '反制 A 挡光线、反制 B 挡格斗。猜错类型反而会露出破绽。',
+    enemyLine: '敌 · 初代奥特曼 使用 切割光线（光线）',
+    playerLine: '你 · 杰顿 使用 杰顿屏障（反制A · 挡光线）',
+    resultLines: [
+      ['　反制猜中 —— 光线被挡下，伤害大幅削减', 'sys'],
+      ['　杰顿 -4 HP', 'hit'],
+    ],
+    dmgEnemy: 0,
+    dmgPlayer: 4,
   },
   {
     lesson: '反制 · 挡格斗',
-    hint: '他换回格斗了。切到【瞬间移动】，这是反制 B，挡格斗的。',
+    hint: '他换回格斗了。切到【瞬间移动】——这是反制 B，挡格斗的。',
     allow: ['瞬间移动'],
-    enemy: '手刀',
-    silent: true,
-    note: '同一个反制猜错类型就没用。',
+    enemyLine: '敌 · 初代奥特曼 使用 手刀（格斗）',
+    playerLine: '你 · 杰顿 使用 瞬间移动（反制B · 挡格斗）',
+    resultLines: [
+      ['　反制猜中 —— 格斗被闪开，伤害大幅削减', 'sys'],
+      ['　杰顿 -5 HP', 'hit'],
+    ],
+    dmgEnemy: 0,
+    dmgPlayer: 5,
   },
   {
     lesson: '被动 · 光线吸收',
-    hint: '杰顿有个被动「光线吸收」：被光线打中会自动反击。用【瞬间移动】硬接一发。',
+    hint: '杰顿有个被动叫「光线吸收」：被光线打中时自动反击。用【瞬间移动】硬接一发看看。',
     allow: ['瞬间移动'],
-    enemy: '切割光线',
-    silent: true,
-    note: '这类被动不用操作，条件一到就触发。',
+    enemyLine: '敌 · 初代奥特曼 使用 切割光线（光线）',
+    playerLine: '你 · 杰顿 使用 瞬间移动（反制B）',
+    resultLines: [
+      ['　反制 B 挡不住光线 —— 被打中了', 'miss'],
+      ['　杰顿 -18 HP', 'hit'],
+      ['　⚡ 被动触发：杰顿吸收光线，自动返击 76 伤害', 'sys'],
+      ['　初代奥特曼 -76 HP', 'hit'],
+    ],
+    dmgEnemy: 76,
+    dmgPlayer: 18,
   },
   {
     lesson: '类型克制',
-    hint: '杰顿是宇宙怪兽，奥特曼是奥特曼属性，属性之间有克制关系。用【一兆度火球】试试。',
+    hint: '杰顿是宇宙怪兽，奥特曼是奥特曼属性。属性之间有克制关系，克制时伤害 ×1.1。注意看伤害数字。',
     allow: ['一兆度火球'],
-    enemy: '光之国使者',
-    silent: true,
-    note: '克制链：宇宙人 > 全体怪兽；怪兽环：宇宙怪兽 > 超能力怪兽 > 地球怪兽 > 宇宙怪兽。',
+    enemyLine: '敌 · 初代奥特曼 展开 光之国使者（领域，不攻击）',
+    playerLine: '你 · 杰顿 使用 一兆度火球（光线）',
+    resultLines: [
+      ['　宇宙怪兽 → 奥特曼：克制 ×1.1', 'sys'],
+      ['　初代奥特曼 -22 HP（未克制时约 20）', 'hit'],
+    ],
+    dmgEnemy: 22,
+    dmgPlayer: 0,
   },
   {
     lesson: 'EP 与大招',
-    hint: 'EP 是放技能的资源，平时开局只有 30 点。教程里给你拉满了——试试【杰顿终极光线】。',
+    hint: 'EP 是放技能的资源，实战里开局只有 30 点。教程里给你拉满了——试试【杰顿终极光线】。',
     allow: ['杰顿终极光线'],
-    enemy: '手刀',
-    silent: true,
-    note: '实战里 EP 紧张，大招要挑时机。',
+    enemyLine: '敌 · 初代奥特曼 使用 手刀（格斗）',
+    playerLine: '你 · 杰顿 使用 杰顿终极光线（必杀 · 消耗 32 EP）',
+    resultLines: [
+      ['　必杀命中，无视普通防御', 'sys'],
+      ['　初代奥特曼 -68 HP', 'hit'],
+    ],
+    dmgEnemy: 68,
+    dmgPlayer: 0,
   },
   {
     lesson: '对波 · 触发',
     hint: '双方同一回合都出光线，就会「对波」——不比先后，直接拼这一下的伤害差。按【一兆度火球】。',
     allow: ['一兆度火球'],
-    enemy: '切割光线',
-    silent: true,
-    note: '对波前先掷命中，有一方落空的话对波不成立。',
+    enemyLine: '敌 · 初代奥特曼 使用 切割光线（光线）',
+    playerLine: '你 · 杰顿 使用 一兆度火球（光线）',
+    clash: { you: 20, foe: 15 },
+    resultLines: [
+      ['　双方同时放出光线 —— 对波！', 'sys'],
+      ['　你 20　对　敌 15　差值 5', 'act'],
+      ['　初代奥特曼 吃下 5 伤害', 'hit'],
+    ],
+    dmgEnemy: 5,
+    dmgPlayer: 0,
   },
   {
-    lesson: '对波 · 输家三选一',
-    hint: '这次你会输。输家有三条路：硬吃、应急（反制减半）、全力（耗尽 EP 赌翻盘）。选【应急】。',
+    lesson: '对波 · 输家的选择',
+    hint: '这次你会输。输家有三条路：硬吃、应急（展开反制减半）、全力（耗尽 EP 赌翻盘）。这回合选【应急】。',
     allow: ['一兆度火球'],
-    enemy: '切割光线',
+    enemyLine: '敌 · 初代奥特曼 使用 切割光线（光线）',
+    playerLine: '你 · 杰顿 使用 一兆度火球（光线）',
+    clash: { you: 21, foe: 29, loser: 'player' },
     forceClash: 'emergency',
-    enemyBoost: 2.2,
-    silent: true,
-    note: '应急要花双倍反制 EP，失败就跟硬吃一样。',
+    resultLines: [
+      ['　双方同时放出光线 —— 对波！', 'sys'],
+      ['　你 21　对　敌 29　差值 8', 'act'],
+      ['　你选了【应急】：展开 杰顿屏障，花双倍 EP', 'sys'],
+      ['　应急成功 —— 减免一半原伤害（-4，-10 EP）', 'sys'],
+      ['　杰顿 -4 HP', 'hit'],
+    ],
+    dmgEnemy: 0,
+    dmgPlayer: 4,
   },
   {
     lesson: '对波 · 追加 EP',
     hint: '这回你赢。赢家可以「见好就收」，也能追加 EP 再打一次。选【追加】。',
     allow: ['一兆度火球'],
-    enemy: '切割光线',
+    enemyLine: '敌 · 初代奥特曼 使用 切割光线（光线）',
+    playerLine: '你 · 杰顿 使用 一兆度火球（光线）',
+    clash: { you: 52, foe: 12 },
     forceClash: 'spend',
-    playerBoost: 2.2,
-    silent: true,
-    note: '每个角色每场只有一次对波机会。',
+    resultLines: [
+      ['　双方同时放出光线 —— 对波！', 'sys'],
+      ['　你 52　对　敌 12　差值 40', 'act'],
+      ['　你选了【追加】：再打一次', 'sys'],
+      ['　初代奥特曼 吃下 92 伤害（40 + 52）', 'hit'],
+    ],
+    dmgEnemy: 92,
+    dmgPlayer: 0,
   },
   {
     lesson: '领域',
-    hint: '领域是持续几回合的场地效果，双方各开各的。开一个【最终侵略兵器】。',
+    hint: '领域是持续几回合的场地效果，双方各开各的、互不覆盖。开一个【最终侵略兵器】。',
     allow: ['最终侵略兵器'],
-    enemy: '手刀',
-    silent: true,
-    note: '屏幕中间会显示双方各自的领域和剩余回合。',
+    enemyLine: '敌 · 初代奥特曼 使用 手刀（格斗）',
+    playerLine: '你 · 杰顿 展开 最终侵略兵器',
+    resultLines: [
+      ['　我方全队全属性 +25%，持续 3 回合', 'sys'],
+      ['　杰顿 -15 HP（敌方攻击）', 'hit'],
+    ],
+    dmgEnemy: 0,
+    dmgPlayer: 15,
+    field: '最终侵略兵器',
   },
   {
     lesson: '换人',
     hint: '场上撑不住可以换人，每队 3 次。这回合换【巴尔坦星人】上来。',
     allow: ['__switch__'],
-    enemy: '手刀',
-    silent: true,
-    note: '队伍总速度快的一方，换人后还能顺手打一下；慢的只能摆防御。',
+    enemyLine: '敌 · 初代奥特曼 使用 手刀（格斗）',
+    playerLine: '你换上 巴尔坦星人',
+    resultLines: [
+      ['　新人刚上场，这回合来不及出手', 'dim'],
+      ['　巴尔坦星人 -19 HP（敌方攻击）', 'hit'],
+    ],
+    dmgEnemy: 0,
+    dmgPlayer: 19,
+    doSwitch: 1,
   },
   {
     lesson: '状态与冷却',
     hint: '巴尔坦的【赤色冷冻光束】会让对手变慢。试试它。',
     allow: ['赤色冷冻光束'],
-    enemy: '手刀',
-    silent: true,
-    note: '有些技能有冷却，用完要等几回合。',
+    enemyLine: '敌 · 初代奥特曼 使用 手刀（格斗）',
+    playerLine: '你 · 巴尔坦星人 使用 赤色冷冻光束（光线）',
+    resultLines: [
+      ['　初代奥特曼 -26 HP', 'hit'],
+      ['　初代奥特曼 迟缓：下回合速度 -30%', 'sys'],
+      ['　注意：这个技能有冷却，接下来几回合不能再用', 'dim'],
+    ],
+    dmgEnemy: 26,
+    dmgPlayer: 0,
   },
   {
     lesson: '毕业战',
-    hint: '前面教的都用上了。现在随便打。',
+    hint: '前面教的都用上了。从这一课开始自由操作，右侧技能全部可用。',
     allow: null,
-    enemy: null,
-    silent: true,
-    note: '',
+    enemyLine: null,
+    playerLine: null,
+    resultLines: [],
+    dmgEnemy: 0,
+    dmgPlayer: 0,
+    free: true,
   },
 ];
 
@@ -3205,6 +3286,86 @@ function applyTutorialLock() {
     btn.classList.toggle('tut-target', allowed);
   });
 }
+
+/* 教程专用结算：一切按脚本走，不触碰正常战斗 */
+async function tutPlay(action) {
+  const cur = currentTut();
+  if (!cur) return;
+
+  // 强制选课
+  if (cur.allow) {
+    if (action.kind === 'move' && action.move) {
+      if (!cur.allow.some((a) => action.move.name.includes(a))) { tutReject(); return; }
+    } else if (action.kind === 'switch') {
+      if (!cur.allow.includes('__switch__')) { tutReject(); return; }
+    } else {
+      tutReject();
+      return;
+    }
+  }
+
+  const P = state.player;
+  const E = state.enemy;
+
+  // 换人
+  if (cur.doSwitch !== undefined) {
+    P.active = cur.doSwitch;
+    state.pendingSwitch = null;
+  }
+
+  log(`── 第 ${tutStep + 1} 课 · ${cur.lesson} ──`, 'sys');
+  if (cur.enemyLine) log(cur.enemyLine, 'act');
+  if (cur.playerLine) log(cur.playerLine, 'act');
+
+  await sleep(200);
+
+  // 对波特效
+  if (cur.clash) {
+    playClashFx('', '一兆度火球', '切割光线');
+    await sleep(400);
+  }
+
+  // 结果日志
+  for (const [text, cls] of (cur.resultLines || [])) {
+    log(text, cls);
+    await sleep(140);
+  }
+
+  // 扣血
+  if (cur.dmgEnemy) {
+    const tgt = E.team[E.active];
+    tgt.hp = Math.max(1, tgt.hp - cur.dmgEnemy);
+    floatText('enemy', '-' + cur.dmgEnemy, 'dmg');
+  }
+  if (cur.dmgPlayer) {
+    const tgt = P.team[P.active];
+    tgt.hp = Math.max(1, tgt.hp - cur.dmgPlayer);
+    floatText('player', '-' + cur.dmgPlayer, 'dmg');
+  }
+
+  // 领域
+  if (cur.field) {
+    setField(P, { name: cur.field, kind: 'statBoost', value: 25, turns: 3, owner: P, charges: 0, drained: null });
+  }
+
+  // 教程里双方状态每课重置
+  for (const side of [P, E]) {
+    for (const m of side.team) {
+      m.ep = EP_MAX;
+      m.hp = m.maxHp;
+      m.buffs.clashSeen = false;
+    }
+  }
+  state.turn++;
+  state.timer = Math.max(1, state.timer - 1);
+
+  render();
+  renderActions();
+
+  advanceTutorial();
+  state.busy = false;
+}
+
 
 function advanceTutorial() {
   // 教程：每课重置对波机会，保证对波课一定能触发
